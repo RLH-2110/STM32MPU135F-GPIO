@@ -72,6 +72,17 @@ int main(int argc, char **argv)
       
   volatile uint32_t *const gpioSetClearDataOutAddr = mmapBase + GPIO_REG_BSRR;
 
+  if (argc == 2){
+    if (strlen(argv[1]) == 2){ // like string "on"
+      *gpioSetClearDataOutAddr = GPIO_PIN_13; /* set the pin */
+      return ret;
+    }
+    if (strlen(argv[1] == 3){ // like string "off"
+      *gpioSetClearDataOutAddr = (uint32_t)(GPIO_PIN_13 << 16); /* reset the pin */
+      return ret;
+    }
+  }
+
   while(1)
   {
     *gpioSetClearDataOutAddr = GPIO_PIN_13; /* set the pin */
