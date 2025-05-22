@@ -21,8 +21,8 @@
 #define GPIO_REG_PUPDR  0x0C    /**< GPIO port pull direction register */
 #define GPIO_REG_BSRR   0x18    /**< GPIO port bit set/reset register */
 
-/*#define GPIO_PIN_13                    ((uint16_t)0x2000U)*/
-
+#define HIGH 0x01
+#define LOW  0x00
 
 #define GPIO_PIN_INPUT_DIRECTION      0x00 /**< Input  */
 #define GPIO_PIN_OUTPUT_DIRECTION     0x01 /**< Output */
@@ -77,35 +77,11 @@ int main(int argc, char **argv)
     exit(1);
   }
  
-  /*{ *//* MODER */
-  /* Load the different gpio register pointers with its address */
-  /*  volatile uint32_t *gpioRegAddr = mmapBase + GPIO_REG_MODER;
-    Get the value of the gpio direction register */
-  /*  uint32_t gpioRegVal = *gpioRegAddr;
-  *//* Clear the GPIO, write it back to the direction register */    
-  /*  gpioRegVal &= ~(0x03 << (13 * 2)); *//* mask out the 2 bits giving the direction */
-  /*  gpioRegVal |= ((GPIO_PIN_OUTPUT_DIRECTION) << (13 * 2));
-    *gpioRegAddr = gpioRegVal;
-  }
-  */
   /* MODER */
   set_gpio_dir(mmapBase, GPIO_PIN_OUTPUT_DIRECTION, 13); 
   
-  /*{ *//* OTYPE */
-    /* Load the different gpio register pointers with its address */
-  /*  volatile uint32_t *gpioRegAddr = mmapBase + GPIO_REG_OTYPER;
-    *//* Get the value of the gpio direction register */
-  /*  uint32_t gpioRegVal = *gpioRegAddr;
-  */  /* Clear the GPIO, write it back to the direction register */    
-  /*  gpioRegVal &= ~(0x0 << (13)); *//* mask out */
-  /*  gpioRegVal |= ((GPIO_PIN_OUTPUT_PUSHPULL) << (13));
-    *gpioRegAddr = gpioRegVal;
-  }
-  */
   /* OTYPE */ 
   set_otype(mmapBase, GPIO_PIN_OUTPUT_PUSHPULL, 13);
-
-  /*volatile uint32_t *const gpioSetClearDataOutAddr = mmapBase + GPIO_REG_BSRR;*/
 
   if (argc == 2){
     if (strlen(argv[1]) == 1){ /* like string "h" */
