@@ -23,30 +23,6 @@ int main(int argc, char **argv)
   static void *mmapBase = NULL; /* Virtual base address */
 
  
-  /* Try to open the mem device special file */
-  int fdMem = open(MEM_DEV, O_RDWR | O_SYNC);
-  if (fdMem < 1)
-  {
-    exit(1);
-  }
-  
-  /* Map memory region for the gpio registers */
-  mmapBase = mmap(NULL,
-          GPIOA_MAP_SIZE,
-          PROT_READ | PROT_WRITE,
-          MAP_SHARED,
-          fdMem,
-          GPIOA_START_ADDR);
-  if (mmapBase == (void*) -1)
-  {
-    exit(1);
-  }
- 
-  /* MODER */
-  set_gpio_dir(mmapBase, GPIO_PIN_OUTPUT_DIRECTION, 13); 
-  
-  /* OTYPE */ 
-  set_otype(mmapBase, GPIO_PIN_OUTPUT_PUSHPULL, 13);
 
   if (argc != 3){
     print_help(argv[0]);
@@ -174,7 +150,14 @@ int set_gpio_led(uint8_t line, int state)
   void *mmapBase = mmap(NULL,GPIOA_MAP_SIZE,PROT_READ | PROT_WRITE, MAP_SHARED, fdMem, GPIOA_START_ADDR);
   if (mmapBase == (void*) -1)
     return 0;
-  return gpio_pin_set(mmapBase, state, 13);
+  
+  if (set_gpio_dir(mmapBase, GPIO_PIN_OUTPUT_DIRECTION, line) == 0)
+    return 0; 
+  
+  if (set_otype(mmapBase, GPIO_PIN_OUTPUT_PUSHPULL, line) == 0)
+    return 0;
+
+  return gpio_pin_set(mmapBase, state, line);
 }
 /*int blink_ic2_led();
 int blink_gpio_led();
