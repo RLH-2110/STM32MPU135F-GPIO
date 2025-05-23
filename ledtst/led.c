@@ -1,4 +1,5 @@
 /*led应用程序*/
+/* progamm modified by Roland Hartung */
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
@@ -8,49 +9,13 @@
 #include <stdint.h>
 #include <unistd.h>
 #include <signal.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <sys/ioctl.h>
+#include <linux/i2c-dev.h>
+#include <ctype.h>
 
-#define MEM_DEV                 "/dev/mem"
-#define GPIOA_START_ADDR        0x50002000
-#define GPIOA_END_ADDR          0x500023FF
-#define GPIOA_MAP_SIZE          (GPIOA_END_ADDR - GPIOA_START_ADDR)
-
- 
-#define GPIO_REG_MODER  0x00    /**< GPIO port mode register */
-#define GPIO_REG_OTYPER 0x04    /**< GPIO port output type register */
-#define GPIO_REG_IDR    0x10    /**< GPIO port input bits */ 
-#define GPIO_REG_PUPDR  0x0C    /**< GPIO port pull direction register */
-#define GPIO_REG_BSRR   0x18    /**< GPIO port bit set/reset register */
-
-#define HIGH 0x01
-#define LOW  0x00
-
-#define GPIO_PIN_INPUT_DIRECTION      0x00 /**< Input  */
-#define GPIO_PIN_OUTPUT_DIRECTION     0x01 /**< Output */
-#define GPIO_PIN_ALT_FUNC_DIRECTION   0x10 /**< Alternate function mode */
-#define GPIO_PIN_ANALOG_DIRECTION     0x11 /**< Analog mode */
-
-#define GPIO_PIN_OUTPUT_PUSHPULL      0x00 /**< Output Push Pull Mode */
-#define GPIO_PIN_OUTPUT_OPENDRAIN     0x01 /**< Output Open Drain Mode */
-
-#define GPIO_PIN_INPUT_NO_PULL        0x00 /**< Input no Pull Up/Down Mode */
-#define GPIO_PIN_INPUT_PULL_UP        0x01 /**< Input Pull Up Mode */
-#define GPIO_PIN_INPUT_PULL_Down      0x02 /**< Input Pull Down Mode */
-
-
-/* #define GPIO_PIN_13_REG_DEFINITION   (GPIOA_START_ADDR+GPIO_PIN_13) */
-
-/* functions returns:
-   0: an invalid parameter was given
-   1: parameters were valid 
-   *mmap: pointer to the start of the mapped memory for the gpio (? verify if this is correct)
-   line: the line of the gpio pin, you can find it with `gpioinfo`
-*/
-int set_gpio_dir(void *mmap, unsigned int direction, unsigned int line); /* direction options: GPIO_PIN_INPUT_DIRECTION,  GPIO_PIN_OUTPUT_DIRECTION,  GPIO_PIN_ALT_FUNC_DIRECTION,GPIO_PIN_ANALOG_DIRECTION  */
-int set_otype(void *mmap, unsigned int outputType, unsigned int line); /* output type options:  GPIO_PIN_OUTPUT_PUSHPULL, GPIO_PIN_OUTPUT_OPENDRAIN   */
-int gpio_pin_set(void *mmap, unsigned int state,unsigned int line); /* state opions: 0: low, 1: high */
-int set_pull_type(void *mmap, unsigned int pullType, unsigned int line); /* pullType options: GPIO_PIN_INPUT_NO_PULL, GPIO_PIN_INPUT_PULL_UP,  GPIO_PIN_INPUT_PULL_Down */
-
-int gpio_pin_read(void *mmap, unsigned int line); /* returns 0 when line is low, and a non-zero value if its high. also returns 0 if line is greater than 15 */
+#include "led.h"
 
 int main(int argc, char **argv)
 {
@@ -83,52 +48,182 @@ int main(int argc, char **argv)
   /* OTYPE */ 
   set_otype(mmapBase, GPIO_PIN_OUTPUT_PUSHPULL, 13);
 
-  if (argc == 2){
-    if (strlen(argv[1]) == 1){ /* like string "h" */
-      puts("\nhelp:\n\th or any 1 char string: prints this screen.\n\ton or any 2 char string: toggles pin on\n\toff or any 3 char string: toggles pin off.\n\tread or any 4 char sting: prints when buttion is pressed\n\t[no arg]:  toggles pin on and off");
-    }
-    if (strlen(argv[1]) == 2){ /* like string "on" */
-      gpio_pin_set(mmapBase, 1, 13);
-      return ret;
-    }
-    if (strlen(argv[1]) == 3){ /* like string "off" */
-      gpio_pin_set(mmapBase, 0, 13);
-      return ret;
-    }
-    if (strlen(argv[1]) == 4){ /* like string "read" */
-
-      usleep(50*10000); /* better wait a bit, probably unessesary. */
-      set_gpio_dir(mmapBase, GPIO_PIN_INPUT_DIRECTION, 13); 
-      set_pull_type(mmapBase, GPIO_PIN_INPUT_NO_PULL, 13);
-      
-      int i = 1;      
-      while(1){
-        
-        if (gpio_pin_read(mmapBase, 13) != 0){
-          printf("%d. Read\n",i); i+=1;
-        }
-        usleep(50*10000);
-   
-      }
-      return ret;
-    }
+  if (argc != 3){
+    print_help(argv[0]);
+    return 0;
   }
 
-  while(1)
-  {
-    /**gpioSetClearDataOutAddr = GPIO_PIN_13; *//* set the pin */
-    gpio_pin_set(mmapBase, 1, 13);
-    usleep(50*10000);
-
-    /**gpioSetClearDataOutAddr = (uint32_t)(GPIO_PIN_13 << 16); *//* reset the pin */
-    gpio_pin_set(mmapBase, 0, 13);
-    usleep(50*10000);
+  /* find out if the led should be on or off*/
+  unsigned int ledState;
+  if      (cmp_str(argv[2],"on")  == 0)
+    ledState = 1;
+  else if (cmp_str(argv[2],"off") == 0)
+    ledState = 0;
+  else{
+    printf("%s is not a valid state! it must be on or off!\n",argv[2]);
+    print_help(argv[0]);
+    return 1;
   }
+
+  /* get led type */
+  uint16_t ledType = get_led_type(argv[1]);
+  if (ledType == 0){
+    printf("%s is not a valid led!\n",argv[1]);
+    print_help(argv[0]);
+    return 1;
+  }
+
+  /* high/low switch, if nessesary (for handleing active low) */
+  if ((ledType & 0x8000) != 0){
+    /* no xor, because ledState 2+ are reserved for other actions */
+    if (ledState == 0)
+      ledState = 1;
+    if (ledState == 1)
+      ledState = 0;
+  }
+ 
+  uint8_t ledData =  get_led_data(argv[1]);
+
+  if (ledState > 1){
+    printf("LED state %d not implemented!\n",ledState);
+    return 1;
+  }
+
+  switch (ledType & 0x7FFF){
+    case 1:
+      ret = set_gpio_led(ledData,ledState); 
+      break;
+
+    case 2:
+      ret = set_ic2_led(ledData,ledState);
+      break;
+
+    default:
+      puts("reached unreachable code in swith case!");
+      return 1;
+  }
+  if (ret != 0)
+    puts("an error has occured");  
   return ret;
 }
 
+void print_help(char* progname){
+  printf("\n%s LEDNAME ON|OFF\n\tLEDNAMES: LD3, LD4, LD6, LD7\n\n\tknown issue: you can only have one I2C LED on at once\n",progname);
+}
 
-int set_gpio_dir(void *mmap, unsigned int direction, unsigned int line)
+
+/* 	Controll FUNCTIONS       */
+
+/*
+  gets the type of led (GPIO, I2C) if the Most Significant bit is set, then its active low, if not, its active high
+  ledname: name of the led (ie. LD7, LD3)
+  
+  values:
+    0: invalid LED
+    1: GPIO0 LED 
+    2: I2C0 LED  
+    
+    example returns
+    GPIO0 LED (active high) > 0x0001
+    GPIO0 LED (active  low) > 0x8001
+    I2C0  LED (active high) > 0x0002
+    I2C0  LED (active  low) > 0x8002
+*/
+uint16_t get_led_type(char const *ledname)
+{
+  if (cmp_str(ledname, "ld3") == 0)
+    return 0x8001;
+  if (cmp_str(ledname, "ld4") == 0)
+    return 0x8001;
+  if (cmp_str(ledname, "ld6") == 0)
+    return 0x0002;
+  if (cmp_str(ledname, "ld7") == 0)
+    return 0x0002;
+  
+  return 0;
+}
+/* returns data needed to identify the LED, check if the LED is valid before using the function, by using get_led_type*/
+uint8_t get_led_data(char const *ledname)
+{
+  if (cmp_str(ledname, "ld3") == 0)
+    return 14;
+  if (cmp_str(ledname, "ld4") == 0)
+    return 13;
+  if (cmp_str(ledname, "ld6") == 0)
+    return 0x80;
+  if (cmp_str(ledname, "ld7") == 0)
+    return 0x40;
+  
+  return 0;
+}
+
+int set_ic2_led(uint8_t regval, int state){
+  int mcp;
+  if (init_i2c(&mcp,0x21,"/dev/i2c-1") == 0)
+    return 0;
+  return i2c_write_gpio(&mcp,state,1,regval);
+}
+
+int set_gpio_led(uint8_t line, int state)
+{
+
+  int fdMem = open(MEM_DEV, O_RDWR | O_SYNC);
+  if (fdMem < 1)
+    return 0;
+
+  void *mmapBase = mmap(NULL,GPIOA_MAP_SIZE,PROT_READ | PROT_WRITE, MAP_SHARED, fdMem, GPIOA_START_ADDR);
+  if (mmapBase == (void*) -1)
+    return 0;
+  return gpio_pin_set(mmapBase, state, 13);
+}
+/*int blink_ic2_led();
+int blink_gpio_led();
+*/
+
+/*        I2C FUNCTIONS          */
+
+int init_i2c(int *mcp, int mcp_addr, char* device){
+  if (mcp == NULL)
+    return 0;
+  
+  *mcp = open(device, O_RDWR);
+  if (*mcp == -1)
+    return 0;
+  if (ioctl(*mcp,I2C_SLAVE,mcp_addr) != 0)
+    return 0;
+
+  /* set all pins to output */ 
+  uint8_t buff[2] = {I2C_B0_IODIRA,0x00}; 
+  if (write(*mcp, buff, 2) != 2)
+    return 0;
+  buff[0] = I2C_B0_IODIRB;
+  if (write(*mcp, buff, 2) != 2)
+    return 0;
+
+  return 1;
+}
+
+int i2c_write_gpio(int *mcp, unsigned int state, unsigned int abSelect, uint8_t regval){
+  if (abSelect > 0x1)
+    return 0;
+  if (state > 0x1)
+    return 0;
+
+  /* set io dir according to abSelect and bank*/
+  uint8_t buff[2] = {I2C_B0_GPIOA,regval};
+  if (abSelect == 1)
+    buff[0] = I2C_B0_GPIOB;
+  
+  if (write(*mcp,buff,2) != 2)
+    return 0;
+  
+  return 1;
+}
+
+/*       GPIO FUNCTIONS          */
+
+
+int set_gpio_dir(void *mmap, unsigned int direction, uint8_t line)
 { /* MODER */
   if (direction > 0x3)
     return 0;
@@ -148,7 +243,7 @@ int set_gpio_dir(void *mmap, unsigned int direction, unsigned int line)
   return 1;
 }
  
-int set_otype(void *mmap, unsigned int outputType, unsigned int line)
+int set_otype(void *mmap, unsigned int outputType, uint8_t line)
 { /* OTYPE */
   if (line > 15)
     return 0;
@@ -166,7 +261,7 @@ int set_otype(void *mmap, unsigned int outputType, unsigned int line)
   return 1;
 }
 
-int set_pull_type(void *mmap, unsigned int pullType, unsigned int line)
+int set_pull_type(void *mmap, unsigned int pullType, uint8_t line)
 { /* PUPDR */
   if (line > 15)
     return 0;
@@ -184,7 +279,7 @@ int set_pull_type(void *mmap, unsigned int pullType, unsigned int line)
   return 1;
 }
 
-int gpio_pin_read(void *mmap, unsigned int line){
+int gpio_pin_read(void *mmap, uint8_t line){
   if (line > 15)
     return 0;
   
@@ -193,7 +288,7 @@ int gpio_pin_read(void *mmap, unsigned int line){
   return ((uint16_t)*gpioSetClearDataOutAddr) & (1 << line); /* read the pin */
 }
  
-int gpio_pin_set(void *mmap, unsigned int state,unsigned int line){
+int gpio_pin_set(void *mmap, unsigned int state, uint8_t line){
   if (state > 0x1)
     return 0;
   if (line > 15)
@@ -207,4 +302,17 @@ int gpio_pin_set(void *mmap, unsigned int state,unsigned int line){
     *gpioSetClearDataOutAddr = (uint32_t)((1 << line) << 16); /* reset the pin */
   
   return 1;
+}
+
+
+/* util */
+
+/* returns 0 if both string are the same, otherwhise retruns a non zero value*/
+int cmp_str(char const *str1, char const *str2){
+  for (;; str1++, str2++) {
+        int d = tolower((unsigned char)*str1) - tolower((unsigned char)*str2);
+        if (d != 0 || *str1 == 0)
+            return d;
+    }
+  return 0;
 }
