@@ -33,14 +33,14 @@ do_compile () {
 	#also doesnt work???!?!!
 	#${CC} led.c riolib.c -o led ${LDFLAGS}
 
-	cat riolib.h > comb.c
-	cat led.h >> comb.c
-	cat led.c >> comb.c
-	cat riolib.c >> comb.c
+	#cat riolib.h > comb.c
+	#cat led.h >> comb.c
+	#cat led.c >> comb.c
+	#cat riolib.c >> comb.c
 
-	cp comb.c home/hartung/workdir/layers/meta-st/meta-hartung-software/recipes-example/ledtst/ledtst/
+	#cp comb.c home/hartung/workdir/layers/meta-st/meta-hartung-software/recipes-example/ledtst/ledtst/
 
-	${CC} comb.c -o led ${LDFLAGS}
+	#${CC} comb.c -o led ${LDFLAGS}
 }
 
 do_install () {
