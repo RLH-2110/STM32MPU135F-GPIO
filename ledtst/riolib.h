@@ -2,6 +2,7 @@
 #define INCLUDED_RIOLIB_H
 
 #include <stdint.h>
+#include <stdbool.h>
 
 /* Placdholder value for funcion parameters whose value is ingnored*/
 #define NONE 0

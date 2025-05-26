@@ -24,7 +24,23 @@ do_configure () {
 
 do_compile () {
 	# Specify compilation commands here
-	${CC} ${CFLAGS} ${LDFLAGS} led.c -o led -Wall
+	
+	#doesnt work??
+	#${CC} ${CFLAGS} -c riolib.c -o riolib.o -Wall
+        #arm-ostl-linux-gnueabi-ar rcs libriolib.a riolib.o
+	#${CC} led.c -L. -lriolib -o led ${LDFLAGS}
+
+	#also doesnt work???!?!!
+	#${CC} led.c riolib.c -o led ${LDFLAGS}
+
+	cat riolib.h > comb.c
+	cat led.h >> comb.c
+	cat led.c >> comb.c
+	cat riolib.c >> comb.c
+
+	cp comb.c home/hartung/workdir/layers/meta-st/meta-hartung-software/recipes-example/ledtst/ledtst/
+
+	${CC} comb.c -o led ${LDFLAGS}
 }
 
 do_install () {
