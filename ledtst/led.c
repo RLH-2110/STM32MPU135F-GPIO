@@ -14,6 +14,7 @@
 #include <sys/ioctl.h>
 #include <linux/i2c-dev.h>
 #include <ctype.h>
+#include <stdbool.h>
 
 #include "led.h"
 
@@ -140,12 +141,9 @@ uint8_t get_led_data(char const *ledname)
 }
 
 int set_ic2_led(uint8_t regval, int state){
-  int mcp;
-  if (init_i2c(&mcp,0x21,"/dev/i2c-1") == 0)
-    return 0;
-  printf("regval: %d | state: %d\n",regval,state);
+  printf("regval: %X | state: %d\n",regval,state);
 
-  return i2c_write_gpio(&mcp,state,1,regval);
+  return i2c_set_bits(0,0x21,state,1,regval);
 }
 
 int set_gpio_led(uint8_t line, int state)
@@ -175,49 +173,95 @@ int blink_gpio_led();
 
 /*        I2C FUNCTIONS          */
 
-int init_i2c(int *mcp, int mcp_addr, char* device){
-  if (mcp == NULL)
-    return 0;
 
-  puts("Getting ready to work with I2C...");  
+uint8_t send_i2c_shell_comand(bool read, uint8_t bus, uint8_t chipAddress, uint8_t registerAdr, uint8_t data)
+{
 
-  *mcp = open(device, O_RDWR);
-  if (*mcp == -1)
-    return 0;
-  if (ioctl(*mcp,I2C_SLAVE,mcp_addr) != 0)
-    return 0;
+  char command[] = "i2cset -y 00 0x21 0x01 0x00\0      ";
+  char buff[] = "00\0 ";
 
-  puts("Setting all I2C pins to output...");
+  if (read == true)
+  {
+    memcpy(command + 3,"get",3);
+    command[22] = 0; /* terminate string early, because read does not need the last byte */
+  }
 
-  /* set all pins to output */ 
-  uint8_t buff[2] = {I2C_B0_IODIRA,0x00}; 
-  if (write(*mcp, buff, 2) != 2)
-    return 0;
-  buff[0] = I2C_B0_IODIRB;
-  if (write(*mcp, buff, 2) != 2)
-    return 0;
+  snprintf(buff,3,"%02d",bus); 
+  memcpy(  command + 10, buff,2); 
+
+  snprintf(buff,3,"%02X",chipAddress); 
+  memcpy(  command + 15, buff,2); 
+
+  snprintf(buff,3,"%02X",registerAdr); 
+  memcpy(  command + 20, buff,2); 
+
+  snprintf(buff,3,"%02X",data); 
+  memcpy(  command + 25, buff,2); 
+
+  printf("command: %s\n",command);
+
+  if (read == false)
+    return system(command);
+  else { /* because we need to get the result printed in the console*/
+   
+    FILE *fp = popen(command,"r");
+    if (fp == NULL) {
+      return system(command); /*return whatever system() returned as error code*/ 
+    }
+    
+    /*read from the output*/
+    char inbuff[6] = "0x00\0";
+    if (fgets(inbuff, sizeof(inbuff)-1, fp) != NULL) {
+        pclose(fp);
+        return (uint8_t)strtol(inbuff, NULL, 0); // strtol handles 0x prefix
+    }
+
+    pclose(fp);
   
-  puts("i2c Initalized");
-
-  return 1;
+  }
 }
 
-int i2c_write_gpio(int *mcp, unsigned int state, unsigned int abSelect, uint8_t regval){
-  if (abSelect > 0x1)
-    return 0;
+int i2c_set_bits(uint8_t bus, uint8_t chipAdr, unsigned int state, unsigned int abSelect, uint8_t registerMask)
+{
   if (state > 0x1)
     return 0;
+  if (abSelect > 0x1)
+    return 0;
 
-  /* set io dir according to abSelect and bank*/
-  uint8_t buff[2] = {I2C_B0_GPIOA,regval};
+  /* select correct iodir register */
+  uint8_t iodir = I2C_B0_IODIRA;
   if (abSelect == 1)
-    buff[0] = I2C_B0_GPIOB;
+    iodir = I2C_B0_IODIRB;
   
-  if (write(*mcp,buff,2) != 2)
+  /* select correct gpio register*/
+  uint8_t gpio = I2C_B0_GPIOA;
+  if (abSelect == 1)
+    gpio = I2C_B0_GPIOB;
+ 
+  /* set unmaked state */ 
+  uint8_t unmaskedState = 0x00;
+  if(state == HIGH)
+    unmaskedState = 0xFF;
+
+  printf("setting pins: 0b%c%c%c%c%c%c%c%c to output\n",BYTE_TO_BINARY(registerMask));
+  /* set the selected bits to output*/
+  int outputs = send_i2c_shell_comand(true, bus, chipAdr, iodir, NONE);
+  printf("outputs already set: 0b%c%c%c%c%c%c%c%c\n",BYTE_TO_BINARY(outputs)); 
+  outputs = outputs & (~registerMask); /* set only the bits we selected to output */
+  if (send_i2c_shell_comand(false, bus, chipAdr, iodir, outputs) != 0)
+    return 0;
+
+  printf("setting pins: 0b%c%c%c%c%c%c%c%c to %s\n",BYTE_TO_BINARY(registerMask), state == LOW ? "LOW" : "HIGH");
+  /* write to the selected bits */
+  outputs = send_i2c_shell_comand(true, bus, chipAdr, gpio, NONE);
+  printf("old pin value: 0b%c%c%c%c%c%c%c%c\n",BYTE_TO_BINARY(outputs)); 
+  int registerVal = (outputs & (~registerMask)) | (unmaskedState & registerMask); /* set/unset the selected bits*/
+  if (send_i2c_shell_comand(false, bus, chipAdr, gpio, registerVal) != 0)
     return 0;
   
   return 1;
 }
+
 
 /*       GPIO FUNCTIONS          */
 
@@ -278,7 +322,8 @@ int set_pull_type(void *mmap, unsigned int pullType, uint8_t line)
   return 1;
 }
 
-int gpio_pin_read(void *mmap, uint8_t line){
+int gpio_pin_read(void *mmap, uint8_t line)
+{
   if (line > 15)
     return 0;
   
@@ -287,7 +332,8 @@ int gpio_pin_read(void *mmap, uint8_t line){
   return ((uint16_t)*gpioSetClearDataOutAddr) & (1 << line); /* read the pin */
 }
  
-int gpio_pin_set(void *mmap, unsigned int state, uint8_t line){
+int gpio_pin_set(void *mmap, unsigned int state, uint8_t line)
+{
   if (state > 0x1)
     return 0;
   if (line > 15)
@@ -307,7 +353,8 @@ int gpio_pin_set(void *mmap, unsigned int state, uint8_t line){
 /* util */
 
 /* returns 0 if both string are the same, otherwhise retruns a non zero value*/
-int cmp_str(char const *str1, char const *str2){
+int cmp_str(char const *str1, char const *str2)
+{
   for (;; str1++, str2++) {
         int d = tolower((unsigned char)*str1) - tolower((unsigned char)*str2);
         if (d != 0 || *str1 == 0)

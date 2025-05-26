@@ -3,6 +3,9 @@
 
 #include <stdint.h>
 
+/* Placdholder value for funcion parameters whose value is ingnored*/
+#define NONE 0
+
 #define MEM_DEV                 "/dev/mem"
 #define GPIOA_START_ADDR        0x50002000
 #define GPIOA_END_ADDR          0x500023FF
@@ -38,6 +41,18 @@
 #define I2C_B0_GPIOB  0x13
 #define I2C_B1_GPIOA  0x09
 #define I2C_B1_GPIOB  0x19
+
+/* because %b for printf is not standard, so we can use these to printf in binary*/
+#define BYTE_TO_BINARY_PATTERN "%c%c%c%c%c%c%c%c"
+#define BYTE_TO_BINARY(byte)  \
+  ((byte) & 0x80 ? '1' : '0'), \
+  ((byte) & 0x40 ? '1' : '0'), \
+  ((byte) & 0x20 ? '1' : '0'), \
+  ((byte) & 0x10 ? '1' : '0'), \
+  ((byte) & 0x08 ? '1' : '0'), \
+  ((byte) & 0x04 ? '1' : '0'), \
+  ((byte) & 0x02 ? '1' : '0'), \
+  ((byte) & 0x01 ? '1' : '0') 
 
 /* functions returns:
    0: an invalid parameter was given
@@ -88,21 +103,33 @@ uint16_t get_led_type(char const *ledname);
 uint8_t get_led_data(char const *ledname);
 
 
-/* initializes the mcp, and sets all pins to output 
-  *mcp: will be set to the file desciptor
-  mcp_addr: the address of the mcp ship (i.e. 0x21)
-  device: unix device path: like /dev/i2c-1
-  returns: 1 on error, 0 on success
-*/
-int init_i2c(int *mcp, int mcp_addr, char* device);
-
 /* writes value to the mcp gpio
-  *mcp: pointer to the file descriptor
+  bus:  selects which i2c chip you want to use (for more info "man i2cset")
+  chipAdr: the address for the device that the chip is connected to
   state: 0: low 1: high
   abSelect: 0: gpioa 1: gpiob
-  regval: value to write to the register
+  registerAdr: the address of the register you want to write to
+  registerMask: masks what bit you want to set/unset
+
+  returns 0: failure OR 1: success
 */
-int i2c_write_gpio(int *mcp, unsigned int state, unsigned int abSelect, uint8_t regval);
+int i2c_set_bits(uint8_t bus, uint8_t chipAdr, unsigned int state, unsigned int abSelect, uint8_t registerMask);
+
+/* uses the i2c command line tool to use the i2c bus
+  read: true if you want to read a value, false if you want to write
+  bus:  selects which i2c chip you want to use (for more info "man i2cset")
+  chipAddress: the address for the device that the chip is connected to
+  registerAdr: the address of the register you want to read/write to
+  data: what you want to write (ignored if read = true)
+
+  returns: 
+    The return value of system is returned, but you should be able to assume this, if no error occures:
+    if read is set, returns the read value.
+    if read is false, returns 0.
+    for more detailed info, "man system"
+      
+*/
+uint8_t send_i2c_shell_comand(bool read, uint8_t bus, uint8_t chipAddress, uint8_t registerAdr, uint8_t data);
 
 /* prints help screen
   progname: name of this program (argv[0])*/
