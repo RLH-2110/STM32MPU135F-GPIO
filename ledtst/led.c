@@ -20,9 +20,6 @@
 int main(int argc, char **argv)
 {
   int ret = EXIT_SUCCESS;
-  static void *mmapBase = NULL; /* Virtual base address */
-
- 
 
   if (argc != 3){
     print_help(argv[0]);
@@ -51,14 +48,21 @@ int main(int argc, char **argv)
 
   /* high/low switch, if nessesary (for handleing active low) */
   if ((ledType & 0x8000) != 0){
+    puts("Active Low LED");
+
     /* no xor, because ledState 2+ are reserved for other actions */
-    if (ledState == 0)
+    if      (ledState == 0)
       ledState = 1;
-    if (ledState == 1)
+    else if (ledState == 1)
       ledState = 0;
+  }else{
+    puts("Active High LED");
   }
- 
-  uint8_t ledData =  get_led_data(argv[1]);
+
+  if (ledState == 1) puts("LedState: Set to HIGH");  
+  if (ledState == 0) puts("LedState: Set to LOW");  
+
+  uint8_t ledData =  get_led_data(argv[1]);  
 
   if (ledState > 1){
     printf("LED state %d not implemented!\n",ledState);
@@ -67,10 +71,12 @@ int main(int argc, char **argv)
 
   switch (ledType & 0x7FFF){
     case 1:
+      printf("GPIO LED on line %d\n",ledData);
       ret = set_gpio_led(ledData,ledState); 
       break;
 
     case 2:
+      printf("I2C LED with register value %X\n",ledData);
       ret = set_ic2_led(ledData,ledState);
       break;
 
@@ -78,9 +84,9 @@ int main(int argc, char **argv)
       puts("reached unreachable code in swith case!");
       return 1;
   }
-  if (ret != 0)
+  if (ret == 0)
     puts("an error has occured");  
-  return ret;
+  return 0;
 }
 
 void print_help(char* progname){
@@ -137,17 +143,20 @@ int set_ic2_led(uint8_t regval, int state){
   int mcp;
   if (init_i2c(&mcp,0x21,"/dev/i2c-1") == 0)
     return 0;
+  printf("regval: %d | state: %d\n",regval,state);
+
   return i2c_write_gpio(&mcp,state,1,regval);
 }
 
 int set_gpio_led(uint8_t line, int state)
 {
+  static void *mmapBase = NULL; /* Virtual base address */
 
   int fdMem = open(MEM_DEV, O_RDWR | O_SYNC);
   if (fdMem < 1)
     return 0;
 
-  void *mmapBase = mmap(NULL,GPIOA_MAP_SIZE,PROT_READ | PROT_WRITE, MAP_SHARED, fdMem, GPIOA_START_ADDR);
+  mmapBase = mmap(NULL,GPIOA_MAP_SIZE,PROT_READ | PROT_WRITE, MAP_SHARED, fdMem, GPIOA_START_ADDR);
   if (mmapBase == (void*) -1)
     return 0;
   
@@ -157,6 +166,7 @@ int set_gpio_led(uint8_t line, int state)
   if (set_otype(mmapBase, GPIO_PIN_OUTPUT_PUSHPULL, line) == 0)
     return 0;
 
+  printf("line: %d | state: %d\n",line,state);
   return gpio_pin_set(mmapBase, state, line);
 }
 /*int blink_ic2_led();
@@ -168,12 +178,16 @@ int blink_gpio_led();
 int init_i2c(int *mcp, int mcp_addr, char* device){
   if (mcp == NULL)
     return 0;
-  
+
+  puts("Getting ready to work with I2C...");  
+
   *mcp = open(device, O_RDWR);
   if (*mcp == -1)
     return 0;
   if (ioctl(*mcp,I2C_SLAVE,mcp_addr) != 0)
     return 0;
+
+  puts("Setting all I2C pins to output...");
 
   /* set all pins to output */ 
   uint8_t buff[2] = {I2C_B0_IODIRA,0x00}; 
@@ -182,6 +196,8 @@ int init_i2c(int *mcp, int mcp_addr, char* device){
   buff[0] = I2C_B0_IODIRB;
   if (write(*mcp, buff, 2) != 2)
     return 0;
+  
+  puts("i2c Initalized");
 
   return 1;
 }
