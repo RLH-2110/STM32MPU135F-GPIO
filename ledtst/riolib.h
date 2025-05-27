@@ -108,5 +108,47 @@ int gpio_init(void **mmapBase, GPIO_Desc gpio_desc);
 */
 int gpio_pin_set_ws(void *mmapBase, int state, uint8_t line);
 
+
+
+
+
+
+/*
+  gets the type of led (GPIO, I2C) if the Most Significant bit is set, then its active low, if not, its active high
+  ledname: name of the led (ie. LD7, LD3)
+
+  values:
+    0: invalid LED
+    1: GPIO0 LED
+    2: I2C0 LED
+
+    example returns
+    GPIO0 LED (active high) > 0x0001
+    GPIO0 LED (active  low) > 0x8001
+    I2C0  LED (active high) > 0x0002
+    I2C0  LED (active  low) > 0x8002
+*/
+uint16_t get_led_type(char const *ledname);
+
+/* returns data needed to identify the LED, check if the LED is valid before using the function, by using get_led_type*/
+uint8_t get_led_data(char const *ledname);
+
+
+/* returns data needed to identify the Button, check if the Button is valid before using the function, by using get_btn_type*/
+uint8_t get_btn_data(char const *ledname);
+
+/*
+  gets the type of button. If the Most Significant bit is set, then its active low, if not, its active high
+  btnname: name of the button (ie. B1, B2)
+
+  values:
+    0: invalid BTN
+    1: GPIO0 BTN
+    2: I2C0 BTN
+*/
+uint16_t get_btn_type(char const *btnname);
+
+
+
 /* INCLUDED_RIOLIB_H */
 #endif

@@ -1,1 +1,0 @@
-move the led and btn data functions to the lib, and generalize them
