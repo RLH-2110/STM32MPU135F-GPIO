@@ -79,7 +79,7 @@ int main(int argc, char **argv)
       puts("reached unreachable code in swith case!");
       return 1;
   }
-  if (ret == 0)
+  if (ret != 0)
     puts("an error has occured");  
   return 0;
 }
@@ -145,7 +145,7 @@ int set_gpio_led(uint8_t line, int state)
   static void *mmapBase = NULL; /* Virtual base address */
 
   if (gpio_init(&mmapBase) != 0)
-    return 0;
+    return -1;
 
   printf("line: %d | state: %d\n",line,state);
   return set_gpio_line_ws(mmapBase,state, line);
