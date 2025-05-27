@@ -7,6 +7,11 @@ This is still in development, and I do not encourage serious use at the moment, 
 > [!NOTE]
 > LD6 and LD7 are connected with I2C, and Currently need modifications to the Device Tree to work, the modified Device Tree is currently not in the Repo.
 
+# The Library
+
+The Static Library is currently only exists in combination to the LED program, this may change in the future, where they may be separated.  
+The Library is as yet not installed on the STM32MPU135F-DK, and is likely only accessible while compiling the LED program.
+
 # Compiling
 
 This is meant to work with Yocto, and it has a Yocto Recipe, you should not worry about compiling it manually.  
