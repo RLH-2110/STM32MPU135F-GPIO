@@ -192,7 +192,7 @@ int gpio_pin_set(void *mmap, unsigned int state, uint8_t line)
 }
 
 
-int gpio_init(void **mmapBase)
+int gpio_init(void **mmapBase, off_t gpioStartAddr)
 {
   if (mmapBase == NULL)
     return -1;
@@ -201,7 +201,7 @@ int gpio_init(void **mmapBase)
   if (fdMem < 1)
     return -1;
 
-  *mmapBase = mmap(NULL,GPIOA_MAP_SIZE,PROT_READ | PROT_WRITE, MAP_SHARED, fdMem, GPIOA_START_ADDR);
+  *mmapBase = mmap(NULL,GPIOA_MAP_SIZE,PROT_READ | PROT_WRITE, MAP_SHARED, fdMem, gpioStartAddr);
   if (*mmapBase == (void*) -1)
     return -1;
   

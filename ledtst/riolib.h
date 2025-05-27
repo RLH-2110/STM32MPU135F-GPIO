@@ -87,9 +87,11 @@ uint8_t send_i2c_shell_comand(bool read, uint8_t bus, uint8_t chipAddress, uint8
 
 /* initalizes mmapBase, which is needed for all gpio functions
   **mmapBase: output parameter that will be set to a pointer to memory
+  gpioStartAddr: start address for the gpio, use MACROS like GPIOA_START_ADDR
+
   returns: -1 on error and 0 on success
-  output: Virtual base address */
-int gpio_init(void **mmapBase);
+*/
+int gpio_init(void **mmapBase, off_t gpioStartAddr);
 
 /* sets up the gpio line (setting it to output and pushpull) and then writes to it.
    *mmapBase: pointer to the start of the mapped memory for the gpio 
