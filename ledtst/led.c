@@ -144,7 +144,7 @@ int set_gpio_led(uint8_t line, int state)
 {
   static void *mmapBase = NULL; /* Virtual base address */
 
-  if (gpio_init(&mmapBase,GPIOA_START_ADDR) != 0)
+  if (gpio_init(&mmapBase,GPIOA_DESC) != 0)
     return -1;
 
   printf("line: %d | state: %d\n",line,state);

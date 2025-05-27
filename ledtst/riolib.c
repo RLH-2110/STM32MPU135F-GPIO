@@ -22,7 +22,10 @@
 
 uint8_t send_i2c_shell_comand(bool read, uint8_t bus, uint8_t chipAddress, uint8_t registerAdr, uint8_t data)
 {
-
+  if (bus > 99){
+    puts("bus greater than 99 is not supported");
+    return -1;
+  }
   char command[] = "i2cset -y 00 0x21 0x01 0x00\0      ";
   char buff[] = "00\0 ";
 
@@ -192,7 +195,7 @@ int gpio_pin_set(void *mmap, unsigned int state, uint8_t line)
 }
 
 
-int gpio_init(void **mmapBase, off_t gpioStartAddr)
+int gpio_init(void **mmapBase, GPIO_Desc gpio_desc)
 {
   if (mmapBase == NULL)
     return -1;
@@ -201,7 +204,7 @@ int gpio_init(void **mmapBase, off_t gpioStartAddr)
   if (fdMem < 1)
     return -1;
 
-  *mmapBase = mmap(NULL,GPIOA_MAP_SIZE,PROT_READ | PROT_WRITE, MAP_SHARED, fdMem, gpioStartAddr);
+  *mmapBase = mmap(NULL,gpio_desc.GPIO_MAP_SIZE,PROT_READ | PROT_WRITE, MAP_SHARED, fdMem, gpio_desc.GPIO_START_ADDR);
   if (*mmapBase == (void*) -1)
     return -1;
   

@@ -43,6 +43,14 @@
 #define I2C_B1_GPIOA  0x09
 #define I2C_B1_GPIOB  0x19
 
+
+typedef struct GPIO_Desc {
+	off_t GPIO_START_ADDR;
+	size_t GPIO_MAP_SIZE;
+} GPIO_Desc;
+
+static const GPIO_Desc GPIOA_DESC = {GPIOA_START_ADDR, GPIOA_MAP_SIZE};
+
 /* functions returns:
    -1: an invalid parameter was given
    0: parameters were valid
@@ -91,7 +99,7 @@ uint8_t send_i2c_shell_comand(bool read, uint8_t bus, uint8_t chipAddress, uint8
 
   returns: -1 on error and 0 on success
 */
-int gpio_init(void **mmapBase, off_t gpioStartAddr);
+int gpio_init(void **mmapBase, GPIO_Desc gpio_desc);
 
 /* sets up the gpio line (setting it to output and pushpull) and then writes to it.
    *mmapBase: pointer to the start of the mapped memory for the gpio 
