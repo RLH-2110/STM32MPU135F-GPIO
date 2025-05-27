@@ -3,4 +3,4 @@ oe-logs
 oe-workdir
 *.o
 *.a
-comp.c
+*.swp
