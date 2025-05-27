@@ -12,21 +12,33 @@
 #include "riolib.h"
 #include "led.h"
 
+enum  LedState {LedState_LOW, LedState_HIGH, LedState_BY_BUTTON_AH, LedState_BY_BUTTON_AL};
+
 int main(int argc, char **argv)
 {
   int ret = EXIT_SUCCESS;
 
+  unsigned int ledState;
+  unsigned int btnState;
+
   if (argc != 3){
-    print_help(argv[0]);
-    return 0;
+    
+    if (argc == 4 && cmp_str(argv[3],"by"));
+    else{
+	/* runs when argc != 3 and ther is no valid expected 4th parameter */
+    	print_help(argv[0]);
+    	return 0;
+    }
   }
 
   /* find out if the led should be on or off*/
-  unsigned int ledState;
   if      (cmp_str(argv[2],"on")  == 0)
-    ledState = 1;
+    ledState = LedState_HIGH;
   else if (cmp_str(argv[2],"off") == 0)
-    ledState = 0;
+    ledState = LedState_LOW;
+  else if (cmp_str(argv[2],"by") == 0){
+    ledState = LedState_BY_BUTTON_AH;
+  }
   else{
     printf("%s is not a valid state! it must be on or off!\n",argv[2]);
     print_help(argv[0]);
@@ -46,16 +58,25 @@ int main(int argc, char **argv)
     puts("Active Low LED");
 
     /* no xor, because ledState 2+ are reserved for other actions */
-    if      (ledState == 0)
-      ledState = 1;
-    else if (ledState == 1)
-      ledState = 0;
+    if      (ledState == LedState_LOW)
+      ledState = LedState_HIGH;
+    else if (ledState == LedState_HIGH)
+      ledState = LedState_LOW;
+    else if (ledState == LedState_BY_BUTTON_AH)
+      ledState = LedState_BY_BUTTON_AL;
   }else{
     puts("Active High LED");
   }
 
-  if (ledState == 1) puts("LedState: Set to HIGH");  
-  if (ledState == 0) puts("LedState: Set to LOW");  
+  if (ledState == LedState_HIGH) puts("LedState: Set to HIGH");  
+  if (ledState == LedState_LOW) puts("LedState: Set to LOW");  
+  if (ledState == LedState_BY_BUTTON_AH) puts("LedState: Set to By Button Active HIGH");  
+  if (ledState == LedState_BY_BUTTON_AL) puts("LedState: Set to By Button Active Low");  
+
+
+
+
+  /* enum implimentation and input is swill wip, and should be more complete in the next commit */
 
   uint8_t ledData =  get_led_data(argv[1]);  
 
