@@ -194,7 +194,7 @@ int gpio_pin_set(void *mmap, unsigned int state, uint8_t line)
 
 int gpio_init(void **mmapBase)
 {
-  if (*mmapBase == NULL)
+  if (mmapBase == NULL)
     return -1;
 
   int fdMem = open(MEM_DEV, O_RDWR | O_SYNC);
@@ -210,11 +210,11 @@ int gpio_init(void **mmapBase)
 
 int set_gpio_line_ws(void *mmapBase, int state,uint8_t line) 
 {
-  if (set_gpio_dir(mmapBase, GPIO_PIN_OUTPUT_DIRECTION, line) == 0)
-    return 0; 
+  if (set_gpio_dir(mmapBase, GPIO_PIN_OUTPUT_DIRECTION, line) != 0)
+    return -1; 
   
-  if (set_otype(mmapBase, GPIO_PIN_OUTPUT_PUSHPULL, line) == 0)
-    return 0;
+  if (set_otype(mmapBase, GPIO_PIN_OUTPUT_PUSHPULL, line) != 0)
+    return -1;
 
   return gpio_pin_set(mmapBase, state, line);
 }
