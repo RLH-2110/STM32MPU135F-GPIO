@@ -148,7 +148,7 @@ int set_gpio_led(uint8_t line, int state)
     return -1;
 
   printf("line: %d | state: %d\n",line,state);
-  return set_gpio_line_ws(mmapBase,state, line);
+  return gpio_pin_set_ws(mmapBase,state, line);
 }
 /*int blink_i2c_led();
 int blink_gpio_led();

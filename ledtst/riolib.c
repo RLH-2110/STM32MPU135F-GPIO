@@ -208,7 +208,7 @@ int gpio_init(void **mmapBase, off_t gpioStartAddr)
   return 0;
 }
 
-int set_gpio_line_ws(void *mmapBase, int state,uint8_t line) 
+int gpio_pin_set_ws(void *mmapBase, int state,uint8_t line) 
 {
   if (set_gpio_dir(mmapBase, GPIO_PIN_OUTPUT_DIRECTION, line) != 0)
     return -1; 

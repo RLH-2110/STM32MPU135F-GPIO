@@ -98,7 +98,7 @@ int gpio_init(void **mmapBase, off_t gpioStartAddr);
    line: the line of the gpio pin, you can find it with `gpioinfo`
    state: what the line will be set to. 0: LOW  1: HIGH
 */
-int set_gpio_line_ws(void *mmapBase, int state, uint8_t line);
+int gpio_pin_set_ws(void *mmapBase, int state, uint8_t line);
 
 /* INCLUDED_RIOLIB_H */
 #endif
