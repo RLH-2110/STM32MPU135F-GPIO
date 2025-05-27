@@ -14,6 +14,8 @@
   ((byte) & 0x02 ? '1' : '0'), \
   ((byte) & 0x01 ? '1' : '0') 
 
+enum LedState {LedState_LOW, LedState_HIGH, LedState_BY_BUTTON_AH, LedState_BY_BUTTON_AL, LedState_LAST};
+enum BtnState {BtnState_AH, BtnState_AL};
 
 
 /* returns 0 if both string are the same, otherwhise retruns a non zero value*/
@@ -51,6 +53,30 @@ uint16_t get_led_type(char const *ledname);
 /* returns data needed to identify the LED, check if the LED is valid before using the function, by using get_led_type*/
 uint8_t get_led_data(char const *ledname);
 
+
+/* returns data needed to identify the Button, check if the Button is valid before using the function, by using get_btn_type*/
+uint8_t get_btn_data(char const *ledname);
+
+/*
+  gets the type of button. If the Most Significant bit is set, then its active low, if not, its active high
+  btnname: name of the button (ie. B1, B2)
+
+  values:
+    0: invalid BTN
+    1: GPIO0 BTN
+*/
+uint16_t get_btn_type(char const *btnname);
+
+
+/* sets up the button and leds, goes int an endless loop and toggles the LED when the button is held.
+  returns: -1 on error.
+*/
+int handle_gpio_button_toggle(uint16_t ledType, unsigned int ledData, int ledState, unsigned int btnLine, int btnState);
+
+/* inverts the state (high -> low | low -> high) 
+  returns: either HIGH, LOW or -1, if the state was invalid.
+*/
+int invert_state(int state);
 
 /* prints help screen
   progname: name of this program (argv[0])*/

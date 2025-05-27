@@ -7,6 +7,8 @@ This is still in development, and I do not encourage serious use at the moment, 
 > [!NOTE]
 > LD6 and LD7 are connected with I2C, and Currently need modifications to the Device Tree to work, the modified Device Tree is currently not in the Repo.
 
+This Project is based on a code example from https://en.eeworld.com.cn/bbs/thread-1268585-1-1.html
+
 # The Library
 
 The Static Library is currently only exists in combination to the LED program, this may change in the future, where they may be separated.  

@@ -12,8 +12,6 @@
 #include "riolib.h"
 #include "led.h"
 
-enum  LedState {LedState_LOW, LedState_HIGH, LedState_BY_BUTTON_AH, LedState_BY_BUTTON_AL};
-
 int main(int argc, char **argv)
 {
   int ret = EXIT_SUCCESS;
@@ -21,9 +19,29 @@ int main(int argc, char **argv)
   unsigned int ledState;
   unsigned int btnState;
 
+  uint16_t ledType = 0;
+  uint16_t btnType = 0;
+
   if (argc != 3){
-    
-    if (argc == 4 && cmp_str(argv[3],"by"));
+
+    if (argc == 4 && cmp_str(argv[2],"by") == 0){
+      /* get button type */
+      btnType = get_btn_type(argv[3]);
+      if (btnType == 0){
+        printf("%s is not a valid button!\n",argv[3]);
+        print_help(argv[0]);
+        return 1;
+      }
+      /* active low detection */
+      if ((btnType & 0x8000) != 0){
+        puts("Active Low Button");
+        btnState = BtnState_AL;
+      }else{
+        puts("Active High Button");
+        btnState = BtnState_AH;
+      }
+
+    }
     else{
 	/* runs when argc != 3 and ther is no valid expected 4th parameter */
     	print_help(argv[0]);
@@ -40,13 +58,13 @@ int main(int argc, char **argv)
     ledState = LedState_BY_BUTTON_AH;
   }
   else{
-    printf("%s is not a valid state! it must be on or off!\n",argv[2]);
+    printf("%s is not a valid state! it must be ON, OFF or BY!\n",argv[2]);
     print_help(argv[0]);
     return 1;
   }
 
   /* get led type */
-  uint16_t ledType = get_led_type(argv[1]);
+  ledType = get_led_type(argv[1]);
   if (ledType == 0){
     printf("%s is not a valid led!\n",argv[1]);
     print_help(argv[0]);
@@ -74,46 +92,56 @@ int main(int argc, char **argv)
   if (ledState == LedState_BY_BUTTON_AL) puts("LedState: Set to By Button Active Low");  
 
 
+  uint8_t ledData = get_led_data(argv[1]);  
+  uint8_t btnData; 
+  
+  if (btnType != 0){
+    btnData = get_btn_data(argv[3]);
 
+    if (btnType == ledType && btnData == ledData){
+      puts("Error: you cant use same GPIO port as input and ouput.");
+      return 1;
+    }
+  }
 
-  /* enum implimentation and input is swill wip, and should be more complete in the next commit */
-
-  uint8_t ledData =  get_led_data(argv[1]);  
-
-  if (ledState > 1){
+  if (ledState >= LedState_LAST){
     printf("LED state %d not implemented!\n",ledState);
     return 1;
   }
+  
+  if (ledState == LedState_LOW || ledState == LedState_HIGH){
+    switch (ledType & 0x7FFF){
+      case 1:
+        ret = set_gpio_led(ledData,ledState == LedState_HIGH ? HIGH : LOW); 
+        break;
 
-  switch (ledType & 0x7FFF){
-    case 1:
-      printf("GPIO LED on line %d\n",ledData);
-      ret = set_gpio_led(ledData,ledState); 
-      break;
-
-    case 2:
-      printf("I2C LED with register value %X\n",ledData);
-      ret = set_i2c_led(ledData,ledState);
-      break;
-
-    default:
-      puts("reached unreachable code in swith case!");
-      return 1;
+      case 2:
+        ret = set_i2c_led(ledData,ledState == LedState_HIGH ? HIGH : LOW);
+        break;
+  
+      default:
+        puts("reached unreachable code in swith case!");
+        return 1;
+    }
+  }else if (ledState == LedState_BY_BUTTON_AH || ledState == LedState_BY_BUTTON_AL){
+     printf("GPIO BUTTION with line %d\n",btnData);
+     ret = handle_gpio_button_toggle(ledType, ledData, ledState, btnData, btnState);
   }
+
   if (ret != 0)
     puts("an error has occured");  
   return 0;
 }
 
 void print_help(char* progname){
-  printf("\n%s LEDNAME ON|OFF\n\tLEDNAMES: LD3, LD4, LD6, LD7\n\n\tknown issue: you can only have one I2C LED on at once\n",progname);
+  printf("\n%s LEDNAME ON|OFF|BY [BTNNAME]\n\tLEDNAMES: LD3, LD4, LD6, LD7\n\tBTNNAMES: B1, B2\n\n\tON: turns on the LED\n\tOFF: turns off the LED\n\tBY: Uses the BTNNAME argument, and activates the LED when the button is pressed\n",progname);
 }
 
 
 /* 	Controll FUNCTIONS       */
 
 /*
-  gets the type of led (GPIO, I2C) if the Most Significant bit is set, then its active low, if not, its active high
+  gets the type of led (GPIO, I2C). If the Most Significant bit is set, then its active low, if not, its active high
   ledname: name of the led (ie. LD7, LD3)
   
   values:
@@ -154,6 +182,30 @@ uint8_t get_led_data(char const *ledname)
   
   return 0;
 }
+/*
+  gets the type of button. If the Most Significant bit is set, then its active low, if not, its active high
+  btnname: name of the button (ie. B1, B2)
+  
+  values:
+    0: invalid BTN
+    1: GPIO0 BTN 
+*/ 
+uint16_t get_btn_type(char const *btnname){
+  if (cmp_str(btnname, "b1") == 0)
+    return 0x8001;
+  if (cmp_str(btnname, "b2") == 0)
+    return 0x8001;
+}
+uint8_t get_btn_data(char const *btnname)
+{
+  if (cmp_str(btnname, "b1") == 0)
+    return 14;
+  if (cmp_str(btnname, "b2") == 0)
+    return 13;
+  
+  return 0;
+}
+
 
 int set_i2c_led(uint8_t regval, int state){
   printf("regval: %X | state: %d\n",regval,state);
@@ -175,8 +227,107 @@ int set_gpio_led(uint8_t line, int state)
 int blink_gpio_led();
 */
 
+int handle_gpio_button_toggle(uint16_t ledType, unsigned int ledData, int ledState, unsigned int btnLine, int btnState){
+   
+  if (ledState != LedState_BY_BUTTON_AL && ledState != LedState_BY_BUTTON_AH) 
+    return -1;
+  if (btnLine > 15) /* max 15 gpio lines */ 
+    return -1;
+  if (ledType == 1 && ledData > 15) /* max 15 gpio */ 
+    return -1;
+ 
+  int ret = 0;
+  static void *mmapBase = NULL; /* Virtual base address */
+  bool toggled = true; /* turns off led if button is not pressed, turns on when button is pressed */
+  int state, oldState;
+  bool setup = true;
+ 
+  int offState = LOW;
+  if (ledState == LedState_BY_BUTTON_AL)
+    offState = HIGH;
+  
+
+  state = offState;
+  oldState = invert_state(offState);
+
+  /* gpio setup */
+  if (gpio_init(&mmapBase,GPIOA_DESC) != 0)
+    return -1;
+
+  if (set_gpio_dir(mmapBase,GPIO_PIN_INPUT_DIRECTION,btnLine) != 0)
+    return -1;
+ 
+  if (set_otype(mmapBase,GPIO_PIN_INPUT_NO_PULL, btnLine) != 0)
+    return -1;
+  
+
+  if ((ledType & 0x7FFF) == 1){ /* if GPIO LED*/
+    printf("GPIO LED WITH LINE %d\n",ledData);
+    if (set_gpio_dir(mmapBase,GPIO_PIN_OUTPUT_DIRECTION,ledData) != 0)
+      return -1;
+ 
+    if (set_otype(mmapBase,GPIO_PIN_OUTPUT_PUSHPULL, ledData) != 0)
+      return -1;
+  }
+  
+  while(true){   
+ 
+    if (toggled){
+      switch (ledType & 0x7FFF){
+        case 1:
+          printf("line: %d | state: %d\n",ledData,state);
+          if (gpio_pin_set(mmapBase,state, ledData) != 0)
+            return -1;
+          break;
+
+        case 2:
+          ret = set_i2c_led(ledData,state);
+          break;
+  
+        default:
+          puts("reached unreachable code in swith case!");
+          return 1;
+      }
+     
+      toggled = false;
+      oldState = state;
+      if (setup){
+        oldState = offState;
+	setup = false;
+      }
+    }
+ 
+  state = gpio_pin_read(mmapBase,btnLine); /* -1: error | 0: LOW | Positive Non-Zero: HIGH */
+  if (state == -1)
+    return -1;
+  if (state != LOW) 
+    state = HIGH;
+
+  if (btnState == BtnState_AL && ledState == LedState_BY_BUTTON_AH)
+    state = invert_state(state);
+  if (btnState == BtnState_AH && ledState == LedState_BY_BUTTON_AL)
+    state = invert_state(state);
+  
+  if (state != oldState)
+    toggled = true; 
+
+  }
+
+  return 0;
+}
 
 /* util */
+
+int invert_state(int state){
+  if (state > 1){
+    printf("Invalid state: %d! It must either be 0 for LOW or 1 for HIGH!");
+    return -1;
+  }
+
+  if (state == HIGH)
+    return LOW;
+  return HIGH;
+}
 
 /* returns 0 if both string are the same, otherwhise retruns a non zero value*/
 int cmp_str(char const *str1, char const *str2)
