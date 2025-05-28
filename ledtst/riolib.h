@@ -22,17 +22,22 @@
 #define HIGH 0x01
 #define LOW  0x00
 
-#define GPIO_PIN_INPUT_DIRECTION      0x00 /**< Input  */
-#define GPIO_PIN_OUTPUT_DIRECTION     0x01 /**< Output */
-#define GPIO_PIN_ALT_FUNC_DIRECTION   0x10 /**< Alternate function mode */
-#define GPIO_PIN_ANALOG_DIRECTION     0x11 /**< Analog mode */
+#define GPIO_PIN_INPUT_DIRECTION      0b00 /**< Input  */
+#define GPIO_PIN_OUTPUT_DIRECTION     0b01 /**< Output */
+#define GPIO_PIN_ALT_FUNC_DIRECTION   0x02 /**< Alternate function mode */
+#define GPIO_PIN_ANALOG_DIRECTION     0x04 /**< Analog mode */
+#define GPIO_MAX_DIRECTION GPIO_PIN_ANALOG_DIRECTION               
 
 #define GPIO_PIN_OUTPUT_PUSHPULL      0x00 /**< Output Push Pull Mode */
 #define GPIO_PIN_OUTPUT_OPENDRAIN     0x01 /**< Output Open Drain Mode */
+#define GPIO_MAX_OUTPUT_DIRECTION GPIO_PIN_OUTPUT_OPENDRAIN         
 
 #define GPIO_PIN_INPUT_NO_PULL        0x00 /**< Input no Pull Up/Down Mode */
 #define GPIO_PIN_INPUT_PULL_UP        0x01 /**< Input Pull Up Mode */
 #define GPIO_PIN_INPUT_PULL_DOWN      0x02 /**< Input Pull Down Mode */
+#define GPIO_MAX_INPUT_DIRECTION GPIO_PIN_INPUT_PULL_DOWN           
+
+#define GPIO_MAX_LINE 15
 
 #define I2C_0_ADDRESS 0x21
 
@@ -43,6 +48,11 @@
 #define I2C_B1_GPIOA  0x09
 #define I2C_B1_GPIOB  0x19
 
+#define I2C_BUS_0 0
+#define I2C_GPIOA_SELECT 0
+#define I2C_GPIOB_SELECT 1
+
+
 
 typedef struct GPIO_Desc {
 	off_t GPIO_START_ADDR;
@@ -50,6 +60,10 @@ typedef struct GPIO_Desc {
 } GPIO_Desc;
 
 static const GPIO_Desc GPIOA_DESC = {GPIOA_START_ADDR, GPIOA_MAP_SIZE};
+
+enum PinType : uint16_t { PinType_INVALID = 0, PinType_GPIO, PinType_I2C, PinType_ACTIVE_LOW = 0x8000};
+#define PinType_IS_ACTIVE_LOW(PIN) ((PIN & PinType_ACTIVE_LOW) == 0 ? false : true)
+#define PinType_GET_CATEGORY_ONLY(PIN) (PIN & 0x7FFF)
 
 /* functions returns:
    -1: an invalid parameter was given

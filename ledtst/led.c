@@ -11,6 +11,7 @@
 
 #include "riolib.h"
 #include "led.h"
+#include "extra_defines.h"
 
 int main(int argc, char **argv)
 {
@@ -24,16 +25,16 @@ int main(int argc, char **argv)
 
   if (argc != 3){
 
-    if (argc == 4 && cmp_str(argv[2],"by") == 0){
+    if (argc == 4 && cmp_str(argv[ARG_COMMAND],"by") == 0){
       /* get button type */
-      btnType = get_btn_type(argv[3]);
-      if (btnType == 0){
-        printf("%s is not a valid button!\n",argv[3]);
-        print_help(argv[0]);
-        return 1;
+      btnType = get_btn_type(argv[ARG_BUTTON]);
+      if (btnType == PinType_INVALID){
+        printf("%s is not a valid button!\n",argv[ARG_BUTTON]);
+        print_help(argv[ARG_PROGRAM_NAME]);
+        return EXIT_FAILURE;
       }
       /* active low detection */
-      if ((btnType & 0x8000) != 0){
+      if (PinType_IS_ACTIVE_LOW(btnType) == true){
         puts("Active Low Button");
         btnState = BtnState_AL;
       }else{
@@ -44,38 +45,37 @@ int main(int argc, char **argv)
     }
     else{
 	/* runs when argc != 3 and ther is no valid expected 4th parameter */
-    	print_help(argv[0]);
-    	return 0;
+    	print_help(argv[ARG_PROGRAM_NAME]);
+    	return EXIT_SUCCESS;
     }
   }
 
   /* find out if the led should be on or off*/
-  if      (cmp_str(argv[2],"on")  == 0)
+  if      (cmp_str(argv[ARG_COMMAND],"on")  == 0)
     ledState = LedState_HIGH;
-  else if (cmp_str(argv[2],"off") == 0)
+  else if (cmp_str(argv[ARG_COMMAND],"off") == 0)
     ledState = LedState_LOW;
-  else if (cmp_str(argv[2],"by") == 0){
+  else if (cmp_str(argv[ARG_COMMAND],"by") == 0){
     ledState = LedState_BY_BUTTON_AH;
   }
   else{
-    printf("%s is not a valid state! it must be ON, OFF or BY!\n",argv[2]);
-    print_help(argv[0]);
-    return 1;
+    printf("%s is not a valid state! it must be ON, OFF or BY!\n",argv[ARG_COMMAND]);
+    print_help(argv[ARG_PROGRAM_NAME]);
+    return EXIT_FAILURE;
   }
 
   /* get led type */
-  ledType = get_led_type(argv[1]);
-  if (ledType == 0){
+  ledType = get_led_type(argv[ARG_LED]);
+  if (ledType == PinType_INVALID){
     printf("%s is not a valid led!\n",argv[1]);
-    print_help(argv[0]);
-    return 1;
+    print_help(argv[ARG_PROGRAM_NAME]);
+    return EXIT_FAILURE;
   }
 
   /* high/low switch, if nessesary (for handleing active low) */
-  if ((ledType & 0x8000) != 0){
+  if (PinType_IS_ACTIVE_LOW(ledType) == true){
     puts("Active Low LED");
 
-    /* no xor, because ledState 2+ are reserved for other actions */
     if      (ledState == LedState_LOW)
       ledState = LedState_HIGH;
     else if (ledState == LedState_HIGH)
@@ -92,45 +92,45 @@ int main(int argc, char **argv)
   if (ledState == LedState_BY_BUTTON_AL) puts("LedState: Set to By Button Active Low");  
 
 
-  uint8_t ledData = get_led_data(argv[1]);  
+  uint8_t ledData = get_led_data(argv[ARG_LED]);  
   uint8_t btnData; 
   
-  if (btnType != 0){
-    btnData = get_btn_data(argv[3]);
+  if (btnType != PinType_INVALID){
+    btnData = get_btn_data(argv[ARG_BUTTON]);
 
     if (btnType == ledType && btnData == ledData){
       puts("Error: you cant use same GPIO port as input and ouput.");
-      return 1;
+      return EXIT_FAILURE;
     }
   }
 
   if (ledState >= LedState_LAST){
     printf("LED state %d not implemented!\n",ledState);
-    return 1;
+    return EXIT_SUCCESS;
   }
   
   if (ledState == LedState_LOW || ledState == LedState_HIGH){
-    switch (ledType & 0x7FFF){
-      case 1:
+    switch (PinType_GET_CATEGORY_ONLY(ledType)){
+      case PinType_GPIO:
         ret = set_gpio_led(ledData,ledState == LedState_HIGH ? HIGH : LOW); 
         break;
 
-      case 2:
+      case PinType_I2C:
         ret = set_i2c_led(ledData,ledState == LedState_HIGH ? HIGH : LOW);
         break;
   
       default:
         puts("reached unreachable code in swith case!");
-        return 1;
+        return EXIT_FAILURE;
     }
   }else if (ledState == LedState_BY_BUTTON_AH || ledState == LedState_BY_BUTTON_AL){
      printf("GPIO BUTTION with line %d\n",btnData);
      ret = handle_gpio_button_toggle(ledType, ledData, ledState, btnData, btnState);
   }
 
-  if (ret != 0)
+  if (ret != RETURN_SUCCESS)
     puts("an error has occured");  
-  return 0;
+  return EXIT_SUCCESS;
 }
 
 void print_help(char* progname){
@@ -143,7 +143,7 @@ void print_help(char* progname){
 int set_i2c_led(uint8_t regval, int state){
   printf("regval: %X | state: %d\n",regval,state);
 
-  return i2c_set_bits(0,0x21,state,1,regval);
+  return i2c_set_bits(I2C_BUS_0,I2C_0_ADDRESS,state,I2C_GPIOB_SELECT,regval);
 }
 
 int set_gpio_led(uint8_t line, int state)
@@ -151,7 +151,7 @@ int set_gpio_led(uint8_t line, int state)
   static void *mmapBase = NULL; /* Virtual base address */
 
   if (gpio_init(&mmapBase,GPIOA_DESC) != 0)
-    return -1;
+    return RETURN_ERROR;
 
   printf("line: %d | state: %d\n",line,state);
   return gpio_pin_set_ws(mmapBase,state, line);
@@ -163,11 +163,11 @@ int blink_gpio_led();
 int handle_gpio_button_toggle(uint16_t ledType, unsigned int ledData, int ledState, unsigned int btnLine, int btnState){
    
   if (ledState != LedState_BY_BUTTON_AL && ledState != LedState_BY_BUTTON_AH) 
-    return -1;
-  if (btnLine > 15) /* max 15 gpio lines */ 
-    return -1;
-  if (ledType == 1 && ledData > 15) /* max 15 gpio */ 
-    return -1;
+    return RETURN_ERROR;
+  if (btnLine > GPIO_MAX_LINE) /* max 15 gpio lines */ 
+    return RETURN_ERROR;
+  if (ledType == PinType_GPIO && ledData > GPIO_MAX_LINE) /* max 15 gpio */ 
+    return RETURN_ERROR;
  
   int ret = 0;
   static void *mmapBase = NULL; /* Virtual base address */
@@ -184,42 +184,42 @@ int handle_gpio_button_toggle(uint16_t ledType, unsigned int ledData, int ledSta
   oldState = invert_state(offState);
 
   /* gpio setup */
-  if (gpio_init(&mmapBase,GPIOA_DESC) != 0)
-    return -1;
+  if (gpio_init(&mmapBase,GPIOA_DESC) != RETURN_SUCCESS)
+    return RETURN_ERROR;
 
-  if (set_gpio_dir(mmapBase,GPIO_PIN_INPUT_DIRECTION,btnLine) != 0)
-    return -1;
+  if (set_gpio_dir(mmapBase,GPIO_PIN_INPUT_DIRECTION,btnLine) != RETURN_SUCCESS)
+    return RETURN_ERROR;
  
-  if (set_otype(mmapBase,GPIO_PIN_INPUT_NO_PULL, btnLine) != 0)
-    return -1;
+  if (set_otype(mmapBase,GPIO_PIN_INPUT_NO_PULL, btnLine) != RETURN_SUCCESS)
+    return RETURN_ERROR;
   
 
-  if ((ledType & 0x7FFF) == 1){ /* if GPIO LED*/
+  if (PinType_GET_CATEGORY_ONLY(ledType) == PinType_GPIO){ /* if GPIO LED*/
     printf("GPIO LED WITH LINE %d\n",ledData);
-    if (set_gpio_dir(mmapBase,GPIO_PIN_OUTPUT_DIRECTION,ledData) != 0)
-      return -1;
+    if (set_gpio_dir(mmapBase,GPIO_PIN_OUTPUT_DIRECTION,ledData) != RETURN_SUCCESS)
+      return RETURN_ERROR;
  
-    if (set_otype(mmapBase,GPIO_PIN_OUTPUT_PUSHPULL, ledData) != 0)
-      return -1;
+    if (set_otype(mmapBase,GPIO_PIN_OUTPUT_PUSHPULL, ledData) != RETURN_SUCCESS)
+      return RETURN_ERROR;
   }
   
   while(true){   
  
     if (toggled){
-      switch (ledType & 0x7FFF){
-        case 1:
+      switch (PinType_GET_CATEGORY_ONLY(ledType)){
+        case PinType_GPIO:
           printf("line: %d | state: %d\n",ledData,state);
-          if (gpio_pin_set(mmapBase,state, ledData) != 0)
-            return -1;
+          if (gpio_pin_set(mmapBase,state, ledData) != RETURN_SUCCESS)
+            return RETURN_ERROR;
           break;
 
-        case 2:
+        case PinType_I2C:
           ret = set_i2c_led(ledData,state);
           break;
   
         default:
           puts("reached unreachable code in swith case!");
-          return 1;
+          return RETURN_ERROR;
       }
      
       toggled = false;
@@ -231,8 +231,8 @@ int handle_gpio_button_toggle(uint16_t ledType, unsigned int ledData, int ledSta
     }
  
   state = gpio_pin_read(mmapBase,btnLine); /* -1: error | 0: LOW | Positive Non-Zero: HIGH */
-  if (state == -1)
-    return -1;
+  if (state == RETURN_ERROR) /* if -1 */
+    return RETURN_ERROR;
   if (state != LOW) 
     state = HIGH;
 
@@ -246,15 +246,15 @@ int handle_gpio_button_toggle(uint16_t ledType, unsigned int ledData, int ledSta
 
   }
 
-  return 0;
+  return RETURN_SUCCESS;
 }
 
 /* util */
 
 int invert_state(int state){
-  if (state > 1){
+  if (state > HIGH){
     printf("Invalid state: %d! It must either be 0 for LOW or 1 for HIGH!");
-    return -1;
+    return RETURN_ERROR;
   }
 
   if (state == HIGH)

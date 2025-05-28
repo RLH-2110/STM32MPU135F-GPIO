@@ -14,19 +14,36 @@
 #include <stdbool.h>
 
 #include "riolib.h"
+#include "extra_defines.h"
 
 
+/*      UTILITY FUNCTIONS        */
+
+/* returns 0 if both string are the same, otherwhise retruns a non zero value*/
+static int cmp_str(char const *str1, char const *str2)
+{
+  for (;; str1++, str2++) {
+        int d = tolower((unsigned char)*str1) - tolower((unsigned char)*str2);
+        if (d != 0 || *str1 == 0)
+            return d;
+    }
+  return 0;
+}   
 
 /*        I2C FUNCTIONS          */
 
 
 uint8_t send_i2c_shell_comand(bool read, uint8_t bus, uint8_t chipAddress, uint8_t registerAdr, uint8_t data)
 {
-  if (bus > 99){
+  if (bus > 99){ /* 3 characters are too much for the buffer */
     puts("bus greater than 99 is not supported");
-    return -1;
+    return RETURN_ERROR;
   }
-  char command[] = "i2cset -y 00 0x21 0x01 0x00\0      ";
+/* MONO SPACED FONT REQUIED TO VIEW       22
+                       3      10   15   20|  25
+                       V      V    V    V V  V  */ 
+  char command[] = "i2cset -y 00 0x21 0x01 0x00\0      "; /* DO NOT CHANGE, UNLESS YOU ALSO CHANGE ALL DEFINES*/
+  
   char buff[] = "00\0 ";
 
   if (read == true)
@@ -67,44 +84,44 @@ uint8_t send_i2c_shell_comand(bool read, uint8_t bus, uint8_t chipAddress, uint8
     pclose(fp);
   
   }
-  return 0; /* should not be reachable */
+  return RETURN_ERROR; /* should not be reachable */
 }
 
 int i2c_set_bits(uint8_t bus, uint8_t chipAdr, unsigned int state, unsigned int abSelect, uint8_t registerMask)
 {
-  if (state > 0x1)
-    return -1;
-  if (abSelect > 0x1)
-    return -1;
+  if (state > HIGH)
+    return RETURN_ERROR;
+  if (abSelect > I2C_GPIOB_SELECT)
+    return RETURN_ERROR;
 
   /* select correct iodir register */
   uint8_t iodir = I2C_B0_IODIRA;
-  if (abSelect == 1)
+  if (abSelect == I2C_GPIOB_SELECT)
     iodir = I2C_B0_IODIRB;
   
   /* select correct gpio register*/
   uint8_t gpio = I2C_B0_GPIOA;
-  if (abSelect == 1)
+  if (abSelect == I2C_GPIOB_SELECT)
     gpio = I2C_B0_GPIOB;
  
   /* set unmaked state */ 
-  uint8_t unmaskedState = 0x00;
+  uint8_t unmaskedState = 0x00; /* all off*/
   if(state == HIGH)
-    unmaskedState = 0xFF;
+    unmaskedState = 0xFF; /* all on*/
 
   /* set the selected bits to output*/
   int outputs = send_i2c_shell_comand(true, bus, chipAdr, iodir, NONE);
   outputs = outputs & (~registerMask); /* set only the bits we selected to output */
-  if (send_i2c_shell_comand(false, bus, chipAdr, iodir, outputs) != 0)
-    return -1;
+  if (send_i2c_shell_comand(false, bus, chipAdr, iodir, outputs) != RETURN_SUCCESS)
+    return RETURN_ERROR;
 
   /* write to the selected bits */
   outputs = send_i2c_shell_comand(true, bus, chipAdr, gpio, NONE);
   int registerVal = (outputs & (~registerMask)) | (unmaskedState & registerMask); /* set/unset the selected bits*/
-  if (send_i2c_shell_comand(false, bus, chipAdr, gpio, registerVal) != 0)
-    return -1;
+  if (send_i2c_shell_comand(false, bus, chipAdr, gpio, registerVal) != RETURN_SUCCESS)
+    return RETURN_ERROR;
   
-  return 0;
+  return RETURN_SUCCESS;
 }
 
 
@@ -113,10 +130,10 @@ int i2c_set_bits(uint8_t bus, uint8_t chipAdr, unsigned int state, unsigned int 
 
 int set_gpio_dir(void *mmap, unsigned int direction, uint8_t line)
 { /* MODER */
-  if (direction > 0x3)
-    return -1;
-  if (line > 15)
-    return -1;
+  if (direction > GPIO_MAX_DIRECTION)
+    return RETURN_ERROR;
+  if (line > GPIO_MAX_LINE)
+    return RETURN_ERROR;
  
 
  /* Load the different gpio register pointers with its address */
@@ -128,15 +145,15 @@ int set_gpio_dir(void *mmap, unsigned int direction, uint8_t line)
   gpioRegVal |= ((direction) << (line * 2));
   *gpioRegAddr = gpioRegVal;
 
-  return 0;
+  return RETURN_SUCCESS;
 }
  
 int set_otype(void *mmap, unsigned int outputType, uint8_t line)
 { /* OTYPE */
-  if (line > 15)
-    return -1;
-  if (outputType > 0x1)
-    return -1;
+  if (line > GPIO_MAX_LINE)
+    return RETURN_ERROR;
+  if (outputType > GPIO_MAX_OUTPUT_DIRECTION)
+    return RETURN_ERROR;
  
   /* Load the different gpio register pointers with its address */
   volatile uint32_t *gpioRegAddr = mmap + GPIO_REG_OTYPER;
@@ -146,15 +163,15 @@ int set_otype(void *mmap, unsigned int outputType, uint8_t line)
   gpioRegVal &= ~(0x0 << (line)); /* mask out */
   gpioRegVal |= ((outputType) << (line));
   *gpioRegAddr = gpioRegVal;
-  return 0;
+  return RETURN_SUCCESS;
 }
 
 int set_pull_type(void *mmap, unsigned int pullType, uint8_t line)
 { /* PUPDR */
-  if (line > 15)
-    return -1;
-  if (pullType > 0x2)
-    return -1;
+  if (line > GPIO_MAX_LINE)
+    return RETURN_ERROR;
+  if (pullType > GPIO_MAX_INPUT_DIRECTION)
+    return RETURN_ERROR;
  
   /* Load the different gpio register pointers with its address */
   volatile uint32_t *gpioRegAddr = mmap + GPIO_REG_PUPDR;
@@ -164,13 +181,13 @@ int set_pull_type(void *mmap, unsigned int pullType, uint8_t line)
   gpioRegVal &= ~(0x0 << (line)); /* mask out */
   gpioRegVal |= ((pullType) << (line));
   *gpioRegAddr = gpioRegVal;
-  return 0;
+  return RETURN_SUCCESS;
 }
 
 int gpio_pin_read(void *mmap, uint8_t line)
 {
-  if (line > 15)
-    return -1;
+  if (line > GPIO_MAX_LINE)
+    return RETURN_ERROR;
   
   volatile uint32_t *const gpioSetClearDataOutAddr = mmap + GPIO_REG_IDR;
   
@@ -179,45 +196,45 @@ int gpio_pin_read(void *mmap, uint8_t line)
  
 int gpio_pin_set(void *mmap, unsigned int state, uint8_t line)
 {
-  if (state > 0x1)
-    return -1;
-  if (line > 15)
-    return -1;
+  if (state > HIGH)
+    return RETURN_ERROR;
+  if (line > GPIO_MAX_LINE)
+    return RETURN_ERROR;
 
   volatile uint32_t *const gpioSetClearDataOutAddr = mmap + GPIO_REG_BSRR;
   
-  if (state == 1) 
+  if (state == HIGH) 
     *gpioSetClearDataOutAddr = (uint16_t)(1 << line); /* set the pin */
   else 
     *gpioSetClearDataOutAddr = (uint32_t)((1 << line) << 16); /* reset the pin */
   
-  return 0;
+  return RETURN_SUCCESS;
 }
 
 
 int gpio_init(void **mmapBase, GPIO_Desc gpio_desc)
 {
   if (mmapBase == NULL)
-    return -1;
+    return RETURN_ERROR;
 
   int fdMem = open(MEM_DEV, O_RDWR | O_SYNC);
   if (fdMem < 1)
-    return -1;
+    return RETURN_ERROR;
 
   *mmapBase = mmap(NULL,gpio_desc.GPIO_MAP_SIZE,PROT_READ | PROT_WRITE, MAP_SHARED, fdMem, gpio_desc.GPIO_START_ADDR);
   if (*mmapBase == (void*) -1)
-    return -1;
+    return RETURN_ERROR;
   
-  return 0;
+  return RETURN_SUCCESS;
 }
 
 int gpio_pin_set_ws(void *mmapBase, int state,uint8_t line) 
 {
-  if (set_gpio_dir(mmapBase, GPIO_PIN_OUTPUT_DIRECTION, line) != 0)
-    return -1; 
+  if (set_gpio_dir(mmapBase, GPIO_PIN_OUTPUT_DIRECTION, line) != RETURN_SUCCESS)
+    return RETURN_ERROR; 
   
-  if (set_otype(mmapBase, GPIO_PIN_OUTPUT_PUSHPULL, line) != 0)
-    return -1;
+  if (set_otype(mmapBase, GPIO_PIN_OUTPUT_PUSHPULL, line) != RETURN_SUCCESS)
+    return RETURN_ERROR;
 
   return gpio_pin_set(mmapBase, state, line);
 }
@@ -244,29 +261,29 @@ int gpio_pin_set_ws(void *mmapBase, int state,uint8_t line)
 uint16_t get_led_type(char const *ledname)
 {
   if (cmp_str(ledname, "ld3") == 0)
-    return 0x8001;
+    return PinType_GPIO + PinType_ACTIVE_LOW;
   if (cmp_str(ledname, "ld4") == 0)
-    return 0x8001;
+    return PinType_GPIO + PinType_ACTIVE_LOW;
   if (cmp_str(ledname, "ld6") == 0)
-    return 0x0002;
+    return PinType_I2C;
   if (cmp_str(ledname, "ld7") == 0)
-    return 0x0002;
+    return PinType_I2C;
 
-  return 0;
+  return PinType_INVALID;
 }
 /* returns data needed to identify the LED, check if the LED is valid before using the function, by using get_led_type*/
 uint8_t get_led_data(char const *ledname)
 {
   if (cmp_str(ledname, "ld3") == 0)
-    return 14;
+    return GPIO_LINE_14;
   if (cmp_str(ledname, "ld4") == 0)
-    return 13;
+    return GPIO_LINE_13;
   if (cmp_str(ledname, "ld6") == 0)
-    return 0x80;
+    return I2C_GPx7;
   if (cmp_str(ledname, "ld7") == 0)
-    return 0x40;
+    return I2C_GPx6;
 
-  return 0;
+  return DATA_INVALID;
 }
 /*
   gets the type of button. If the Most Significant bit is set, then its active low, if not, its active high
@@ -279,16 +296,19 @@ uint8_t get_led_data(char const *ledname)
 */
 uint16_t get_btn_type(char const *btnname){
   if (cmp_str(btnname, "b1") == 0)
-    return 0x8001;
+    return PinType_GPIO + PinType_ACTIVE_LOW;
   if (cmp_str(btnname, "b2") == 0)
-    return 0x8001;
+    return PinType_GPIO + PinType_ACTIVE_LOW;
+
+  return PinType_INVALID;
 }
+
 uint8_t get_btn_data(char const *btnname)
 {
   if (cmp_str(btnname, "b1") == 0)
-    return 14;
+    return GPIO_LINE_14;
   if (cmp_str(btnname, "b2") == 0)
-    return 13;
+    return GPIO_LINE_13;
 
-  return 0;
+  return DATA_INVALID;
 }
