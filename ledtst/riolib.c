@@ -258,7 +258,7 @@ int gpio_pin_set_ws(void *mmapBase, int state,uint8_t line)
     I2C0  LED (active high) > 0x0002
     I2C0  LED (active  low) > 0x8002
 */
-uint16_t get_led_type(char const *ledname)
+PinType get_led_type(char const *ledname)
 {
   if (cmp_str(ledname, "ld3") == 0)
     return PinType_GPIO + PinType_ACTIVE_LOW;
@@ -274,6 +274,9 @@ uint16_t get_led_type(char const *ledname)
 /* returns data needed to identify the LED, check if the LED is valid before using the function, by using get_led_type*/
 uint8_t get_led_data(char const *ledname)
 {
+  if (ledname == NULL)
+    return PinType_INVALID;
+
   if (cmp_str(ledname, "ld3") == 0)
     return GPIO_LINE_14;
   if (cmp_str(ledname, "ld4") == 0)
@@ -294,7 +297,10 @@ uint8_t get_led_data(char const *ledname)
     1: GPIO0 BTN
     2: I2C0 BTN 
 */
-uint16_t get_btn_type(char const *btnname){
+PinType get_btn_type(char const *btnname){
+  if (btnname == NULL)
+    return PinType_INVALID;
+
   if (cmp_str(btnname, "b1") == 0)
     return PinType_GPIO + PinType_ACTIVE_LOW;
   if (cmp_str(btnname, "b2") == 0)
@@ -312,3 +318,98 @@ uint8_t get_btn_data(char const *btnname)
 
   return DATA_INVALID;
 }
+
+
+
+/* GPIO CHIP AND PIN INFO */
+
+GPIO_Desc get_GPIO_Desc(GPIOS gpio_id){
+  switch (gpio_id){
+    case 0:
+      return GPIOA_DESC;
+    case 1:
+      return GPIOB_DESC;
+    case 2:
+      return GPIOC_DESC;
+    case 3:
+      return GPIOD_DESC;
+    case 4:
+      return GPIOE_DESC;
+    case 5:
+      return GPIOF_DESC;
+    case 6:
+      return GPIOG_DESC;
+    case 7:
+      return GPIOH_DESC;
+    case 8:
+      return GPIOI_DESC;
+    default:
+      return GPIO_INVALID_DESC; 
+  }
+}
+
+
+GPIO_Pin_desc get_pin_info(char* pin){
+  if (pin == NULL)
+    return GPIO_INVALID_PIN_DESC;
+    
+  /*
+     expected pin names: Px1n, Pxn
+     x = A-I
+     n = 0-9
+  */
+  int len = strlen(pin);
+  if (len < 3 || len > 4)
+    return GPIO_INVALID_PIN_DESC;
+
+  if (tolower(pin[0]) != 'p')
+    return GPIO_INVALID_PIN_DESC;
+
+  char *pinLine = pin+2; /* start where the number begins */  
+  uint8_t lineNum;
+  int temp;
+
+  /* get the value for the last digit*/
+  temp = pinLine[len == 3 ? 0 : 1] - '0';
+  if (temp > 9)  
+    return GPIO_INVALID_PIN_DESC;
+
+  lineNum = temp; 
+
+  if (len == 4 && pinLine[0] != '1')
+    return GPIO_INVALID_PIN_DESC; 
+
+  if (len == 4)
+    lineNum += 10; /* line can never have a digit greater than 1 in the 10th place, so we can just add 10, if the lenght of the number is 2*/
+
+
+
+  /* get chip name*/
+  GPIOS chip;
+
+  switch (tolower(pin[1])){
+    case 'a':
+      chip = GPIOA; break;
+    case 'b':
+      chip = GPIOB; break;
+    case 'c':
+      chip = GPIOC; break;
+    case 'd':
+      chip = GPIOD; break;
+    case 'e':
+      chip = GPIOE; break;
+    case 'f':
+      chip = GPIOF; break;
+    case 'g':
+      chip = GPIOG; break;
+    case 'h':
+      chip = GPIOH; break;
+    case 'i':
+      chip = GPIOI; break;
+    default:
+      return GPIO_INVALID_PIN_DESC; 
+  }
+ /* GPIO_Pin_desc */
+ return (GPIO_Pin_desc) {chip,lineNum};
+} 
+

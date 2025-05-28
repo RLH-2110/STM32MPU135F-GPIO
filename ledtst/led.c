@@ -13,15 +13,21 @@
 #include "led.h"
 #include "extra_defines.h"
 
+void test(void);
+void get_pin_info_test(char* input, GPIOS exChip, uint8_t exLine);
+
+
 int main(int argc, char **argv)
 {
+  /*test();*/ 
+
   int ret = EXIT_SUCCESS;
 
   unsigned int ledState;
   unsigned int btnState;
 
-  uint16_t ledType = 0;
-  uint16_t btnType = 0;
+  PinType ledType = 0;
+  PinType btnType = 0;
 
   if (argc != 3){
 
@@ -160,7 +166,7 @@ int set_gpio_led(uint8_t line, int state)
 int blink_gpio_led();
 */
 
-int handle_gpio_button_toggle(uint16_t ledType, unsigned int ledData, int ledState, unsigned int btnLine, int btnState){
+int handle_gpio_button_toggle(PinType ledType, unsigned int ledData, int ledState, unsigned int btnLine, int btnState){
    
   if (ledState != LedState_BY_BUTTON_AL && ledState != LedState_BY_BUTTON_AH) 
     return RETURN_ERROR;
@@ -271,4 +277,41 @@ int cmp_str(char const *str1, char const *str2)
             return d;
     }
   return 0;
+}
+
+void get_pin_info_test(char* input, GPIOS exChip, uint8_t exLine){
+  
+  if (get_pin_info(input).gpioChip != exChip && get_pin_info("").gpioLine != exLine)
+    printf("test fail pininfo '%s'",input);
+
+
+}
+
+void test(void){
+
+  if (get_GPIO_Desc(0).GPIO_START_ADDR != GPIOA_DESC.GPIO_START_ADDR && get_GPIO_Desc(0).GPIO_MAP_SIZE != GPIOA_DESC.GPIO_MAP_SIZE)
+    puts("test fail gpio A");
+
+  if (get_GPIO_Desc(8).GPIO_START_ADDR != GPIOI_DESC.GPIO_START_ADDR && get_GPIO_Desc(8).GPIO_MAP_SIZE != GPIOI_DESC.GPIO_MAP_SIZE)
+    puts("test fail gpio I");
+
+  if (get_GPIO_Desc(9).GPIO_START_ADDR != GPIO_INVALID_DESC.GPIO_START_ADDR && get_GPIO_Desc(9).GPIO_MAP_SIZE != GPIO_INVALID_DESC.GPIO_MAP_SIZE)
+    puts("test fail gpio invalid");
+
+
+  get_pin_info_test(""    ,GPIO_INVALID,0);
+  get_pin_info_test(NULL  ,GPIO_INVALID,0);
+  get_pin_info_test("xt7" ,GPIO_INVALID,0);
+  get_pin_info_test("xt17",GPIO_INVALID,0);
+  get_pin_info_test("px0" ,GPIO_INVALID,0);
+  get_pin_info_test("pa0" ,GPIOA,0);
+  get_pin_info_test("pa1" ,GPIOA,1);
+  get_pin_info_test("pi15",GPIOI,15);
+  get_pin_info_test("pj5" ,GPIO_INVALID,0);
+  get_pin_info_test("pa16",GPIO_INVALID,0);
+  get_pin_info_test("pa00",GPIO_INVALID,0);
+  get_pin_info_test("paF",GPIO_INVALID,0);
+  get_pin_info_test("pa ",GPIO_INVALID,0);
+
+  puts("tests complete!");
 }

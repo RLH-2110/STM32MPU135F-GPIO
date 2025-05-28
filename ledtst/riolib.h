@@ -8,10 +8,42 @@
 #define NONE 0
 
 #define MEM_DEV                 "/dev/mem"
+
 #define GPIOA_START_ADDR        0x50002000
 #define GPIOA_END_ADDR          0x500023FF
 #define GPIOA_MAP_SIZE          (GPIOA_END_ADDR - GPIOA_START_ADDR)
  
+#define GPIOB_START_ADDR        0x50003000
+#define GPIOB_END_ADDR          0x500033FF
+#define GPIOB_MAP_SIZE          (GPIOB_END_ADDR - GPIOB_START_ADDR)
+
+#define GPIOC_START_ADDR        0x50004000
+#define GPIOC_END_ADDR          0x500043FF
+#define GPIOC_MAP_SIZE          (GPIOC_END_ADDR - GPIOC_START_ADDR)
+ 
+#define GPIOD_START_ADDR        0x50005000
+#define GPIOD_END_ADDR          0x500053FF
+#define GPIOD_MAP_SIZE          (GPIOD_END_ADDR - GPIOD_START_ADDR)
+ 
+#define GPIOE_START_ADDR        0x50006000
+#define GPIOE_END_ADDR          0x500063FF
+#define GPIOE_MAP_SIZE          (GPIOE_END_ADDR - GPIOE_START_ADDR)
+ 
+#define GPIOF_START_ADDR        0x50007000
+#define GPIOF_END_ADDR          0x500073FF
+#define GPIOF_MAP_SIZE          (GPIOF_END_ADDR - GPIOF_START_ADDR)
+ 
+#define GPIOG_START_ADDR        0x50008000
+#define GPIOG_END_ADDR          0x500083FF
+#define GPIOG_MAP_SIZE          (GPIOG_END_ADDR - GPIOG_START_ADDR)
+ 
+#define GPIOH_START_ADDR        0x50009000
+#define GPIOH_END_ADDR          0x500093FF
+#define GPIOH_MAP_SIZE          (GPIOH_END_ADDR - GPIOH_START_ADDR)
+ 
+#define GPIOI_START_ADDR        0x5000A000
+#define GPIOI_END_ADDR          0x5000A3FF
+#define GPIOI_MAP_SIZE          (GPIOI_END_ADDR - GPIOI_START_ADDR)
  
 #define GPIO_REG_MODER  0x00    /**< GPIO port mode register */
 #define GPIO_REG_OTYPER 0x04    /**< GPIO port output type register */
@@ -52,18 +84,34 @@
 #define I2C_GPIOA_SELECT 0
 #define I2C_GPIOB_SELECT 1
 
+typedef enum : uint8_t { GPIOA, GPIOB, GPIOC, GPIOD, GPIOE, GPIOF, GPIOG, GPIOH, GPIOI, GPIO_INVALID = 0xFF} GPIOS;
 
-
-typedef struct GPIO_Desc {
-	off_t GPIO_START_ADDR;
-	size_t GPIO_MAP_SIZE;
-} GPIO_Desc;
-
-static const GPIO_Desc GPIOA_DESC = {GPIOA_START_ADDR, GPIOA_MAP_SIZE};
-
-enum PinType : uint16_t { PinType_INVALID = 0, PinType_GPIO, PinType_I2C, PinType_ACTIVE_LOW = 0x8000};
+typedef enum : uint16_t { PinType_INVALID = 0, PinType_GPIO, PinType_I2C, PinType_ACTIVE_LOW = 0x8000} PinType;
 #define PinType_IS_ACTIVE_LOW(PIN) ((PIN & PinType_ACTIVE_LOW) == 0 ? false : true)
 #define PinType_GET_CATEGORY_ONLY(PIN) (PIN & 0x7FFF)
+
+typedef struct GPIO_Desc {
+  off_t GPIO_START_ADDR;
+  size_t GPIO_MAP_SIZE;
+} GPIO_Desc;
+
+typedef struct GPIO_Pin_desc {
+  GPIOS gpioChip;
+  uint8_t gpioLine;
+} GPIO_Pin_desc;
+
+static const GPIO_Pin_desc GPIO_INVALID_PIN_DESC = {GPIO_INVALID, 0};
+
+static const GPIO_Desc GPIOA_DESC = {GPIOA_START_ADDR, GPIOA_MAP_SIZE};
+static const GPIO_Desc GPIOB_DESC = {GPIOB_START_ADDR, GPIOB_MAP_SIZE};
+static const GPIO_Desc GPIOC_DESC = {GPIOC_START_ADDR, GPIOC_MAP_SIZE};
+static const GPIO_Desc GPIOD_DESC = {GPIOD_START_ADDR, GPIOD_MAP_SIZE};
+static const GPIO_Desc GPIOE_DESC = {GPIOE_START_ADDR, GPIOE_MAP_SIZE};
+static const GPIO_Desc GPIOF_DESC = {GPIOF_START_ADDR, GPIOF_MAP_SIZE};
+static const GPIO_Desc GPIOG_DESC = {GPIOG_START_ADDR, GPIOG_MAP_SIZE};
+static const GPIO_Desc GPIOH_DESC = {GPIOH_START_ADDR, GPIOH_MAP_SIZE};
+static const GPIO_Desc GPIOI_DESC = {GPIOI_START_ADDR, GPIOI_MAP_SIZE};
+static const GPIO_Desc GPIO_INVALID_DESC = {GPIO_INVALID, 0};
 
 /* functions returns:
    -1: an invalid parameter was given
@@ -142,7 +190,7 @@ int gpio_pin_set_ws(void *mmapBase, int state, uint8_t line);
     I2C0  LED (active high) > 0x0002
     I2C0  LED (active  low) > 0x8002
 */
-uint16_t get_led_type(char const *ledname);
+PinType get_led_type(char const *ledname);
 
 /* returns data needed to identify the LED, check if the LED is valid before using the function, by using get_led_type*/
 uint8_t get_led_data(char const *ledname);
@@ -160,9 +208,16 @@ uint8_t get_btn_data(char const *ledname);
     1: GPIO0 BTN
     2: I2C0 BTN
 */
-uint16_t get_btn_type(char const *btnname);
+PinType get_btn_type(char const *btnname);
 
+/* gets the GPIO_Desc by the id of the gpio. returns GPIO_INVALID_DESC, if an invalid id was used. */
+GPIO_Desc get_GPIO_Desc(GPIOS gpio_id);
 
+/* finds out what gpio chip and line a pin belongs to
+  pin: the name of the pin
+
+  returns: a GPIO_Pin_desc with the info. Returns GPIO_INVALID_PIN_DESC, if the pin is invalid*/
+GPIO_Pin_desc get_pin_info(char* pin);
 
 /* INCLUDED_RIOLIB_H */
 #endif
