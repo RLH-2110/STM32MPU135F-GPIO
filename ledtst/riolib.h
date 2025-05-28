@@ -71,10 +71,14 @@
 
 #define GPIO_MAX_LINE 15
 
-#define I2C_0_ADDRESS 0x21
+#define I2C_0_DEVICE "/dev/i2c-0"
+
+#define MCP_0_ADDRESS (uint8_t)0x21
 
 #define I2C_B0_IODIRA 0x00
 #define I2C_B0_IODIRB 0x01
+#define I2C_B1_IODIRA 0x00
+#define I2C_B1_IODIRB 0x10
 #define I2C_B0_GPIOA  0x12
 #define I2C_B0_GPIOB  0x13
 #define I2C_B1_GPIOA  0x09
@@ -83,6 +87,9 @@
 #define I2C_BUS_0 0
 #define I2C_GPIOA_SELECT 0
 #define I2C_GPIOB_SELECT 1
+
+#define MCP_OUTPUT_DIR 0
+#define MCP_INPUT_DIR 1
 
 typedef enum : uint8_t { GPIOA, GPIOB, GPIOC, GPIOD, GPIOE, GPIOF, GPIOG, GPIOH, GPIOI, GPIO_INVALID = 0xFF} GPIOS;
 
@@ -128,32 +135,47 @@ int gpio_pin_read(void *mmap, uint8_t line); /* returns 0 when line is low, and 
 
 
 /* writes value to the mcp gpio
-  bus:  selects which i2c chip you want to use (for more info "man i2cset")
   chipAdr: the address for the device that the chip is connected to
   state: 0: low 1: high
-  abSelect: 0: gpioa 1: gpiob
-  registerAdr: the address of the register you want to write to
+  portA: true: gpioa | false: gpiob
+  bus0: true: bus 0 | false: bus 1
   registerMask: masks what bit you want to set/unset
 
   returns -1: failure OR 0: success
 */
-int i2c_set_bits(uint8_t bus, uint8_t chipAdr, unsigned int state, unsigned int abSelect, uint8_t registerMask);
 
-/* uses the i2c command line tool to use the i2c bus
-  read: true if you want to read a value, false if you want to write
-  bus:  selects which i2c chip you want to use (for more info "man i2cset")
-  chipAddress: the address for the device that the chip is connected to
-  registerAdr: the address of the register you want to read/write to
-  data: what you want to write (ignored if read = true)
-
-  returns: 
-    The return value of system is returned, but you should be able to assume this, if no error occures:
-    if read is set, returns the read value *(1)
-    if read is false, returns 0 *(1)
-    *(1) these are only true if there are no errors, if an error occured, you will find the error codes returned from system. for more detailed info, "man system"
-      
+int i2c_set_bits(uint8_t chipAdr, unsigned int state, bool portA, bool bus0, uint8_t registerMask);
+/* gets a file desciptor thats ready to be sued to communicate via i2c!
+  *device: string to the /dev/i2c that we use, example: /dev/i2c-0
+  address: address of the mcp. example 0x21
+  
+  returns: file desciptor for use with other i2c functions, or -1 on error. 
 */
-uint8_t send_i2c_shell_comand(bool read, uint8_t bus, uint8_t chipAddress, uint8_t registerAdr, uint8_t data);
+int i2c_init(char *device, uint8_t address);
+
+/* closes opened file desciptors from i2c_init*/
+void i2c_cleanup(int mcp);
+
+
+/* either reads or writes to the I2C BUS 
+  read: true if you want to read a value, false if you want to write
+  mcp:  the initalized fd from init_i2c
+  registerAdr; address of the register to read/write to/from    
+  data: what you want to write (ignored if read = true)
+  out_readData: output parameter, that contain the read value, if read is true. can be set to NULL when read is false.
+
+  returns: 0 on SUCCESS, -1 ON ERROR 
+*/
+uint8_t use_i2c_gpio(bool read, int mcp, uint8_t registerAdr, uint8_t data, uint8_t *out_readData);
+
+/* Translates an address of a portA + bus0 Address to to an address with the specified prot and bus settings
+  usingGPIOA: if true, GPIO A is used, if false, GPIO B is used!
+  usingBus0: if true, Bus 0 is used, if false, Bus 1 used!
+  registerAddress: the address that will be translated
+
+  returns: the new address on success or -1 on failure! 
+*/
+uint8_t i2c_get_port(bool usingGPIOA,bool usingBus0, int registerAddress);
 
 /* initalizes mmapBase, which is needed for all gpio functions
   **mmapBase: output parameter that will be set to a pointer to memory

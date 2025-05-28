@@ -12,6 +12,8 @@
 #include <sys/stat.h>
 #include <ctype.h>
 #include <stdbool.h>
+#include <sys/ioctl.h>
+#include <linux/i2c-dev.h>
 
 #include "riolib.h"
 #include "extra_defines.h"
@@ -32,96 +34,146 @@ static int cmp_str(char const *str1, char const *str2)
 
 /*        I2C FUNCTIONS          */
 
-
-uint8_t send_i2c_shell_comand(bool read, uint8_t bus, uint8_t chipAddress, uint8_t registerAdr, uint8_t data)
-{
-  if (bus > 99){ /* 3 characters are too much for the buffer */
-    puts("bus greater than 99 is not supported");
+int i2c_init(char *device, uint8_t address){
+  if (device == NULL)
     return RETURN_ERROR;
-  }
-/* MONO SPACED FONT REQUIED TO VIEW       22
-                       3      10   15   20|  25
-                       V      V    V    V V  V  */ 
-  char command[] = "i2cset -y 00 0x21 0x01 0x00\0      "; /* DO NOT CHANGE, UNLESS YOU ALSO CHANGE ALL DEFINES*/
-  
-  char buff[] = "00\0 ";
+ 
+  int mcp = open(device, O_RDWR);
+  if (mcp == -1)
+    return RETURN_ERROR;
 
-  if (read == true)
-  {
-    memcpy(command + 3,"get",3);
-    command[22] = 0; /* terminate string early, because read does not need the last byte */
-  }
-
-  snprintf(buff,3,"%02d",bus); 
-  memcpy(  command + 10, buff,2); 
-
-  snprintf(buff,3,"%02X",chipAddress); 
-  memcpy(  command + 15, buff,2); 
-
-  snprintf(buff,3,"%02X",registerAdr); 
-  memcpy(  command + 20, buff,2); 
-
-  snprintf(buff,3,"%02X",data); 
-  memcpy(  command + 25, buff,2); 
-
-
-  if (read == false)
-    return system(command);
-  else { /* because we need to get the result printed in the console*/
-   
-    FILE *fp = popen(command,"r");
-    if (fp == NULL) {
-      return system(command); /*return whatever system() returned as error code*/ 
-    }
-    
-    /*read from the output*/
-    char inbuff[6] = "0x00\0";
-    if (fgets(inbuff, sizeof(inbuff)-1, fp) != NULL) {
-        pclose(fp);
-        return (uint8_t)strtol(inbuff, NULL, 0); // strtol handles 0x prefix
-    }
-
-    pclose(fp);
-  
-  }
-  return RETURN_ERROR; /* should not be reachable */
+  if (ioctl(mcp, I2C_SLAVE, address) == -1){
+    close(mcp);
+    return RETURN_ERROR;
+  } 
+  return mcp;
 }
 
-int i2c_set_bits(uint8_t bus, uint8_t chipAdr, unsigned int state, unsigned int abSelect, uint8_t registerMask)
+void i2c_cleanup(int mcp){
+  if (mcp != -1)
+    close(mcp);
+}
+
+/* translates bus 0 address to a bus 1, if usingBus0 is false.
+returns new address on success, and -1 on failure
+*/
+static uint8_t i2c_bus_addr_translation(bool usingBus0, int registerAddress){
+  if (usingBus0)
+    return registerAddress;
+
+  switch (registerAddress){
+    case I2C_B0_IODIRA:
+      return I2C_B1_IODIRA;
+
+    case I2C_B0_IODIRB:
+      return I2C_B1_IODIRB;
+
+    case I2C_B0_GPIOA:
+      return I2C_B1_GPIOA;
+
+    case I2C_B0_GPIOB:
+      return I2C_B1_GPIOB;
+
+    default:
+      return RETURN_ERROR;
+  }
+}
+
+/* translates port a addresses to port b address, if usingGPIA is false.
+returns new address on success, and -1 on failure
+*/
+static uint8_t i2c_port_addr_translation(bool usingGPIOA, int registerAddress){
+  if (usingGPIOA)
+    return registerAddress;
+
+  switch (registerAddress){
+    case I2C_B0_IODIRA:
+      return I2C_B0_IODIRB;
+
+    /*case I2C_B1_IODIRA: *//* duplicate case, because I2C_B0_IODIRA == I2C_B1_IODIRA*//*
+      return I2C_B1_IODIRB;
+    */
+    case I2C_B0_GPIOA:
+      return I2C_B0_GPIOB;
+
+    case I2C_B1_GPIOA:
+      return I2C_B1_GPIOB;
+
+    default:
+      return RETURN_ERROR;
+  }
+}
+
+uint8_t i2c_get_port(bool usingGPIOA,bool usingBus0, int registerAddress){
+  return i2c_bus_addr_translation(usingBus0,i2c_port_addr_translation(usingGPIOA, registerAddress)); 
+}
+
+uint8_t use_i2c_gpio(bool readData, int mcp, uint8_t registerAdr, uint8_t data, uint8_t *out_readData)
+{
+  if (mcp == -1)
+    return RETURN_ERROR;
+    
+  uint8_t buff[2]; 
+  buff[0] = registerAdr;
+
+  if (readData){
+    if (out_readData == NULL)
+      return RETURN_ERROR;
+    
+    int tmp;
+    if(write(mcp,buff,1) != 1)
+      return RETURN_ERROR;
+
+    if (read(mcp, &tmp, 1) != 1)    
+      return RETURN_ERROR;
+
+    *out_readData = tmp;  
+  }
+  else{ /* !readData */
+    buff[1] = data;
+    if(write(mcp,buff,2) != 2)
+      return RETURN_ERROR;
+  }
+
+  return RETURN_SUCCESS;
+}
+
+#define i2c_set_bits_ERROR_CLEAN { close(mcp);  return RETURN_ERROR;}
+int i2c_set_bits(uint8_t chipAdr, unsigned int state, bool portA, bool bus0, uint8_t registerMask)
 {
   if (state > HIGH)
     return RETURN_ERROR;
-  if (abSelect > I2C_GPIOB_SELECT)
-    return RETURN_ERROR;
-
-  /* select correct iodir register */
-  uint8_t iodir = I2C_B0_IODIRA;
-  if (abSelect == I2C_GPIOB_SELECT)
-    iodir = I2C_B0_IODIRB;
-  
-  /* select correct gpio register*/
-  uint8_t gpio = I2C_B0_GPIOA;
-  if (abSelect == I2C_GPIOB_SELECT)
-    gpio = I2C_B0_GPIOB;
  
+  int mcp = i2c_init(I2C_0_DEVICE,chipAdr);
+  if (mcp == -1)
+    return RETURN_ERROR;
+  
+
   /* set unmaked state */ 
   uint8_t unmaskedState = 0x00; /* all off*/
   if(state == HIGH)
     unmaskedState = 0xFF; /* all on*/
 
   /* set the selected bits to output*/
-  int outputs = send_i2c_shell_comand(true, bus, chipAdr, iodir, NONE);
+  uint8_t outputs;
+  if (use_i2c_gpio(true, mcp, i2c_get_port(portA,bus0,I2C_B0_IODIRA), NONE, &outputs) != RETURN_SUCCESS)
+    i2c_set_bits_ERROR_CLEAN
+  
   outputs = outputs & (~registerMask); /* set only the bits we selected to output */
-  if (send_i2c_shell_comand(false, bus, chipAdr, iodir, outputs) != RETURN_SUCCESS)
-    return RETURN_ERROR;
+  if (use_i2c_gpio(false, mcp, i2c_get_port(portA,bus0,I2C_B0_IODIRA), outputs, NULL) != RETURN_SUCCESS)
+    i2c_set_bits_ERROR_CLEAN
 
   /* write to the selected bits */
-  outputs = send_i2c_shell_comand(true, bus, chipAdr, gpio, NONE);
-  int registerVal = (outputs & (~registerMask)) | (unmaskedState & registerMask); /* set/unset the selected bits*/
-  if (send_i2c_shell_comand(false, bus, chipAdr, gpio, registerVal) != RETURN_SUCCESS)
-    return RETURN_ERROR;
+  if (use_i2c_gpio(true, mcp, i2c_get_port(portA,bus0,I2C_B0_GPIOA), NONE, &outputs) != RETURN_SUCCESS)
+    i2c_set_bits_ERROR_CLEAN
+
+  uint8_t registerVal = (outputs & (~registerMask)) | (unmaskedState & registerMask); /* set/unset the selected bits*/
+  if (use_i2c_gpio(false, mcp, i2c_get_port(portA,bus0,I2C_B0_GPIOA), registerVal, NULL) != RETURN_SUCCESS)
+    i2c_set_bits_ERROR_CLEAN
   
+  close(mcp); 
   return RETURN_SUCCESS;
+
 }
 
 

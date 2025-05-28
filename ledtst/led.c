@@ -149,7 +149,7 @@ void print_help(char* progname){
 int set_i2c_led(uint8_t regval, int state){
   printf("regval: %X | state: %d\n",regval,state);
 
-  return i2c_set_bits(I2C_BUS_0,I2C_0_ADDRESS,state,I2C_GPIOB_SELECT,regval);
+  return i2c_set_bits(MCP_0_ADDRESS,state,false,true,regval);
 }
 
 int set_gpio_led(uint8_t line, int state)
