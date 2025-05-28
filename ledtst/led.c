@@ -154,13 +154,19 @@ int set_i2c_led(uint8_t regval, int state){
 
 int set_gpio_led(uint8_t line, int state)
 {
-  static void *mmapBase = NULL; /* Virtual base address */
+  /*static void *mmapBase = NULL; *//* Virtual base address */
+  GPIO_cleanup mapData;
 
-  if (gpio_init(&mmapBase,GPIOA_DESC) != 0)
+  if (gpio_init(&mapData,GPIOA_DESC) != 0)
     return RETURN_ERROR;
 
   printf("line: %d | state: %d\n",line,state);
-  return gpio_pin_set_ws(mmapBase,state, line);
+  int ret = gpio_pin_set_ws(mapData.mmapBase,state, line);
+  
+  if (gpio_cleanup(mapData) != RETURN_SUCCESS)
+    return RETURN_ERROR;
+
+  return ret;  
 }
 /*int blink_i2c_led();
 int blink_gpio_led();
@@ -176,7 +182,8 @@ int handle_gpio_button_toggle(PinType ledType, unsigned int ledData, int ledStat
     return RETURN_ERROR;
  
   int ret = 0;
-  static void *mmapBase = NULL; /* Virtual base address */
+  /*static void *mmapBase = NULL; *//* Virtual base address */
+  GPIO_cleanup mapData;
   bool toggled = true; /* turns off led if button is not pressed, turns on when button is pressed */
   int state, oldState;
   bool setup = true;
@@ -190,22 +197,22 @@ int handle_gpio_button_toggle(PinType ledType, unsigned int ledData, int ledStat
   oldState = invert_state(offState);
 
   /* gpio setup */
-  if (gpio_init(&mmapBase,GPIOA_DESC) != RETURN_SUCCESS)
+  if (gpio_init(&mapData,GPIOA_DESC) != RETURN_SUCCESS)
     return RETURN_ERROR;
 
-  if (set_gpio_dir(mmapBase,GPIO_PIN_INPUT_DIRECTION,btnLine) != RETURN_SUCCESS)
+  if (set_gpio_dir(mapData.mmapBase,GPIO_PIN_INPUT_DIRECTION,btnLine) != RETURN_SUCCESS)
     return RETURN_ERROR;
  
-  if (set_otype(mmapBase,GPIO_PIN_INPUT_NO_PULL, btnLine) != RETURN_SUCCESS)
+  if (set_otype(mapData.mmapBase,GPIO_PIN_INPUT_NO_PULL, btnLine) != RETURN_SUCCESS)
     return RETURN_ERROR;
   
 
   if (PinType_GET_CATEGORY_ONLY(ledType) == PinType_GPIO){ /* if GPIO LED*/
     printf("GPIO LED WITH LINE %d\n",ledData);
-    if (set_gpio_dir(mmapBase,GPIO_PIN_OUTPUT_DIRECTION,ledData) != RETURN_SUCCESS)
+    if (set_gpio_dir(mapData.mmapBase,GPIO_PIN_OUTPUT_DIRECTION,ledData) != RETURN_SUCCESS)
       return RETURN_ERROR;
  
-    if (set_otype(mmapBase,GPIO_PIN_OUTPUT_PUSHPULL, ledData) != RETURN_SUCCESS)
+    if (set_otype(mapData.mmapBase,GPIO_PIN_OUTPUT_PUSHPULL, ledData) != RETURN_SUCCESS)
       return RETURN_ERROR;
   }
   
@@ -215,7 +222,7 @@ int handle_gpio_button_toggle(PinType ledType, unsigned int ledData, int ledStat
       switch (PinType_GET_CATEGORY_ONLY(ledType)){
         case PinType_GPIO:
           printf("line: %d | state: %d\n",ledData,state);
-          if (gpio_pin_set(mmapBase,state, ledData) != RETURN_SUCCESS)
+          if (gpio_pin_set(mapData.mmapBase,state, ledData) != RETURN_SUCCESS)
             return RETURN_ERROR;
           break;
 
@@ -236,7 +243,7 @@ int handle_gpio_button_toggle(PinType ledType, unsigned int ledData, int ledStat
       }
     }
  
-  state = gpio_pin_read(mmapBase,btnLine); /* -1: error | 0: LOW | Positive Non-Zero: HIGH */
+  state = gpio_pin_read(mapData.mmapBase,btnLine); /* -1: error | 0: LOW | Positive Non-Zero: HIGH */
   if (state == RETURN_ERROR) /* if -1 */
     return RETURN_ERROR;
   if (state != LOW) 

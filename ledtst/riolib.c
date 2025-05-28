@@ -264,20 +264,29 @@ int gpio_pin_set(void *mmap, unsigned int state, uint8_t line)
 }
 
 
-int gpio_init(void **mmapBase, GPIO_Desc gpio_desc)
+int gpio_init(GPIO_cleanup *out_data, GPIO_Desc gpio_desc)
 {
-  if (mmapBase == NULL)
+  if (out_data == NULL)
     return RETURN_ERROR;
 
-  int fdMem = open(MEM_DEV, O_RDWR | O_SYNC);
-  if (fdMem < 1)
+  out_data->fdMem = open(MEM_DEV, O_RDWR | O_SYNC);
+  if (out_data->fdMem < 1)
     return RETURN_ERROR;
 
-  *mmapBase = mmap(NULL,gpio_desc.GPIO_MAP_SIZE,PROT_READ | PROT_WRITE, MAP_SHARED, fdMem, gpio_desc.GPIO_START_ADDR);
-  if (*mmapBase == (void*) -1)
+  out_data->mmapBase = mmap(NULL,gpio_desc.GPIO_MAP_SIZE,PROT_READ | PROT_WRITE, MAP_SHARED, out_data->fdMem, gpio_desc.GPIO_START_ADDR);
+  if (out_data->mmapBase == (void*) -1)
     return RETURN_ERROR;
   
+  out_data->size = gpio_desc.GPIO_MAP_SIZE;
+
   return RETURN_SUCCESS;
+}
+
+int gpio_cleanup(GPIO_cleanup data)
+{
+  if(close(data.fdMem) == -1)
+    return RETURN_ERROR; 
+  return munmap(data.mmapBase,data.size);
 }
 
 int gpio_pin_set_ws(void *mmapBase, int state,uint8_t line) 

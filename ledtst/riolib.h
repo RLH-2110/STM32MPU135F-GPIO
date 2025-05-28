@@ -107,6 +107,12 @@ typedef struct GPIO_Pin_desc {
   uint8_t gpioLine;
 } GPIO_Pin_desc;
 
+typedef struct GPIO_cleanup {
+ char *mmapBase;
+ int fdMem;
+ int size;
+} GPIO_cleanup; 
+
 static const GPIO_Pin_desc GPIO_INVALID_PIN_DESC = {GPIO_INVALID, 0};
 
 static const GPIO_Desc GPIOA_DESC = {GPIOA_START_ADDR, GPIOA_MAP_SIZE};
@@ -178,12 +184,16 @@ uint8_t use_i2c_gpio(bool read, int mcp, uint8_t registerAdr, uint8_t data, uint
 uint8_t i2c_get_port(bool usingGPIOA,bool usingBus0, int registerAddress);
 
 /* initalizes mmapBase, which is needed for all gpio functions
-  **mmapBase: output parameter that will be set to a pointer to memory
+  *out_data; output parameter with a stuct that will be set to a pointer to memory und a file desciptor that may be needed for cleanup.
   gpioStartAddr: start address for the gpio, use MACROS like GPIOA_START_ADDR
 
   returns: -1 on error and 0 on success
 */
-int gpio_init(void **mmapBase, GPIO_Desc gpio_desc);
+int gpio_init(GPIO_cleanup *out_data, GPIO_Desc gpio_desc);
+
+/* cleans up data from gpio_init
+  returns 0 on success and -1 on error */
+int gpio_cleanup(GPIO_cleanup data);
 
 /* sets up the gpio line (setting it to output and pushpull) and then writes to it.
    *mmapBase: pointer to the start of the mapped memory for the gpio 
