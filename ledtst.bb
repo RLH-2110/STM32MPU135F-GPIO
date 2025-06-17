@@ -11,8 +11,9 @@
 LICENSE = "CC0-1.0"
 LIC_FILES_CHKSUM = "file://LICENSE;md5=65d3616852dbf7b1a6d4b53b00626032"
 
-# No information for SRC_URI yet (only an external source tree was specified)
-SRC_URI = "file:///home/hartung/workdir/layers/meta-st/meta-hartung-software/recipes-example/ledtst/ledtst/;protocol=file;branch=master"
+FILESEXTRAPATHS:prepend := "${THISDIR}:"
+SRC_URI = "file://ledtst/"
+S = "${WORKDIR}/ledtst"
 
 # NOTE: no Makefile found, unable to determine what needs to be done
 
